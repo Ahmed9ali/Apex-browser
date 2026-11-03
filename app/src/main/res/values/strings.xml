@@ -1,0 +1,81 @@
+<resources>
+    <string name="app_name">Apex Browser</string>
+
+    <!-- Address & Toolbar -->
+    <string name="address_bar_hint">Search or type web address</string>
+    <string name="cd_privacy_shield">Apex Privacy Shield</string>
+    <string name="cd_reload_page">Reload or stop page</string>
+    <string name="cd_clear_input">Clear input</string>
+    <string name="cd_https_secure">HTTPS encrypted connection</string>
+
+    <!-- Bottom Navigation -->
+    <string name="nav_home">Home</string>
+    <string name="nav_bookmarks">Bookmarks</string>
+    <string name="nav_search">Search</string>
+    <string name="nav_tabs">Tabs</string>
+    <string name="nav_extensions">AI</string>
+    <string name="cd_main_menu_more">More browser options</string>
+    <string name="fab_new_tab">New Tab</string>
+
+    <!-- Dedicated Search Screen -->
+    <string name="search_screen_hint">Search %1$s or enter URL</string>
+    <string name="search_engine_label">Search Engine</string>
+    <string name="search_suggestions_header">%1$s Suggestions</string>
+    <string name="search_recent_header">Recent Searches</string>
+    <string name="search_clear_history">Clear All</string>
+    <string name="search_fresh_empty_title">Private Search Ready</string>
+    <string name="search_fresh_empty_subtitle">Start typing above for live %1$s suggestions or enter any web address.</string>
+    <string name="cd_fill_suggestion">Copy suggestion to search box</string>
+    <string name="cd_remove_history_item">Remove from search history</string>
+    <string name="cd_close_search">Close search</string>
+
+    <!-- Bookmarks -->
+    <string name="bookmarks_screen_title">Saved Bookmarks</string>
+    <string name="bookmarks_empty_title">No Bookmarks Yet</string>
+    <string name="bookmarks_empty_subtitle">Visit any website and tap Bookmarks on the bottom bar to save it here.</string>
+    <string name="cd_delete_bookmark">Remove bookmark</string>
+    <string name="action_view_bookmarks">View</string>
+
+    <!-- Privacy Dashboard -->
+    <string name="privacy_dashboard_title">Apex Privacy Telemetry</string>
+    <string name="privacy_dashboard_subtitle">Live local tracker &amp; ad interception</string>
+    <string name="stat_trackers_blocked">Trackers &amp; Ads</string>
+    <string name="stat_https_upgrades">HTTPS Upgrades</string>
+    <string name="stat_data_saved">Data Saved</string>
+    <string name="stat_time_saved">Time Saved</string>
+    <string name="chip_shields_up">Shields Active</string>
+    <string name="chip_https_only">HTTPS Upgrade</string>
+    <string name="chip_smart_preload">Turbo Preload</string>
+    <string name="chip_script_guard">Script Guard</string>
+    <string name="home_bookmarks_section">Your Bookmarks</string>
+    <string name="home_fresh_bookmarks_hint">Pages you bookmark will appear here for one-tap access.</string>
+
+    <!-- Tab Switcher & Tab Groups -->
+    <string name="tabs_sheet_title">Tabs &amp; Groups</string>
+    <string name="tabs_drag_subtitle">Drag any tab onto another to create a group</string>
+    <string name="tabs_close_all">Reset</string>
+    <string name="cd_close_tab">Close tab</string>
+    <string name="cd_drag_tab">Drag tab to group</string>
+    <string name="tab_group_drop_hint">Drop to Group</string>
+    <string name="tab_group_add_tab">Add Tab to Group</string>
+    <string name="tab_group_ungroup">Ungroup</string>
+
+    <!-- Automation Extensions -->
+    <string name="automation_panel_title">Apex Extensions</string>
+    <string name="ext_nano_title">Nano Agents</string>
+    <string name="ext_retriever_title">Retriever</string>
+    <string name="nano_input_hint">Describe a browser task for Planner, Navigator &amp; Validator…</string>
+    <string name="nano_run_action">Run</string>
+    <string name="retriever_capture_tab">Capture Page</string>
+    <string name="retriever_parallel_tabs">Run Across All Tabs</string>
+    <string name="retriever_rule_hint">Extraction prompt or CSS selector (e.g., product names and prices)</string>
+    <string name="retriever_save_rule">Save Rule</string>
+
+    <!-- Menu -->
+    <string name="menu_new_tab">New Private Tab</string>
+    <string name="menu_open_bookmarks">Open Bookmarks</string>
+    <string name="menu_privacy_sheet">Shield &amp; Preload Inspector</string>
+    <string name="menu_desktop_mode">Desktop Viewport</string>
+    <string name="menu_cycle_seed">Cycle M3 Seed Palette</string>
+    <string name="menu_clear_data">Reset Telemetry &amp; History</string>
+</resources>

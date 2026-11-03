@@ -1,0 +1,6 @@
+{
+  "name": "Apex Browser",
+  "description": "Fast, privacy-centric Android web browser built with Material 3 Expressive, featuring ad and tracker shields, HTTPS upgrades, Nano multi-agent automation, and Retriever local-first multi-tab web scraping.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
