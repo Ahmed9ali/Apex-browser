@@ -1,7 +1,6 @@
 package com.example.ui.browser
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -14,14 +13,12 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoAwesome
@@ -29,24 +26,24 @@ import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BookmarkAdd
 import androidx.compose.material.icons.filled.Bookmarks
 import androidx.compose.material.icons.filled.DesktopWindows
+import androidx.compose.material.icons.filled.Explore
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.outlined.BookmarkAdd
 import androidx.compose.material.icons.outlined.Bookmarks
 import androidx.compose.material.icons.outlined.CleaningServices
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Layers
-import androidx.compose.material.icons.outlined.Shield
+import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.TableChart
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -59,6 +56,8 @@ import androidx.compose.material3.SplitButtonDefaults
 import androidx.compose.material3.SplitButtonLayout
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -74,7 +73,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.R
-import com.example.data.preferences.SearchEngineOption
 import com.example.ui.theme.ApexMotion
 import com.example.ui.theme.EmphasizedTypography
 import com.example.ui.theme.LocalReducedMotion
@@ -82,15 +80,15 @@ import com.example.ui.theme.rememberMorphingCornerShape
 import com.example.ui.viewmodel.BrowserTab
 import com.example.ui.viewmodel.ExtensionModule
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CompactTopToolbar(
     visible: Boolean,
     activeTab: BrowserTab,
-    searchEngine: SearchEngineOption,
-    shieldsEnabled: Boolean,
     onAddressPillClick: () -> Unit,
     onReloadClick: () -> Unit,
-    onShieldClick: () -> Unit,
+    onOpenSettingsClick: () -> Unit,
+    onOpenAutomationClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val reducedMotion = LocalReducedMotion.current
@@ -114,167 +112,141 @@ fun CompactTopToolbar(
         exit = exitTransition,
         modifier = modifier
     ) {
-        Surface(
-            color = MaterialTheme.colorScheme.surfaceContainer,
-            tonalElevation = 3.dp,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .windowInsetsPadding(WindowInsets.statusBars)
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 12.dp, vertical = 8.dp)
-                ) {
-                    val pillShape = rememberMorphingCornerShape(
-                        targetRadius = if (activeTab.isHomePage) 28.dp else 18.dp,
-                        label = "AddressBarShapeMorph"
-                    )
-
-                    Surface(
-                        shape = pillShape,
-                        color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(48.dp)
-                            .clip(pillShape)
-                            .clickable(onClick = onAddressPillClick)
-                            .testTag("address_bar_container")
-                    ) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            TopAppBar(
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                    scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    titleContentColor = MaterialTheme.colorScheme.onSurface,
+                    actionIconContentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                ),
+                title = {
+                    if (activeTab.isHomePage) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 14.dp)
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            Icon(
-                                imageVector = if (activeTab.isHomePage) {
-                                    Icons.Filled.Search
-                                } else {
-                                    Icons.Filled.Lock
-                                },
-                                contentDescription = stringResource(R.string.cd_https_secure),
-                                tint = if (activeTab.wasUpgradedToHttps) {
-                                    MaterialTheme.colorScheme.tertiary
-                                } else {
-                                    MaterialTheme.colorScheme.primary
-                                },
-                                modifier = Modifier.size(18.dp)
-                            )
-
-                            Spacer(modifier = Modifier.width(10.dp))
-
-                            Text(
-                                text = if (activeTab.isHomePage) {
-                                    stringResource(R.string.search_screen_hint, searchEngine.displayName)
-                                } else {
-                                    activeTab.url
-                                },
-                                style = if (activeTab.isHomePage) {
-                                    MaterialTheme.typography.bodyMedium
-                                } else {
-                                    EmphasizedTypography.addressBarActive
-                                },
-                                color = if (activeTab.isHomePage) {
-                                    MaterialTheme.colorScheme.onSurfaceVariant
-                                } else {
-                                    MaterialTheme.colorScheme.onSurface
-                                },
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.weight(1f)
-                            )
-
-                            if (!activeTab.isHomePage) {
-                                IconButton(
-                                    onClick = onReloadClick,
-                                    modifier = Modifier
-                                        .size(36.dp)
-                                        .testTag("reload_page_button")
-                                ) {
+                            Surface(
+                                shape = CircleShape,
+                                color = MaterialTheme.colorScheme.primaryContainer,
+                                modifier = Modifier.size(34.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
                                     Icon(
-                                        imageVector = Icons.Filled.Refresh,
-                                        contentDescription = stringResource(R.string.cd_reload_page),
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.size(18.dp)
+                                        imageVector = Icons.Filled.Explore,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                        modifier = Modifier.size(19.dp)
                                     )
                                 }
                             }
+                            Text(
+                                text = stringResource(R.string.app_name),
+                                style = EmphasizedTypography.headlineHero,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
                         }
-                    }
-
-                    val shieldContainer by animateColorAsState(
-                        targetValue = if (shieldsEnabled) {
-                            MaterialTheme.colorScheme.primaryContainer
-                        } else {
-                            MaterialTheme.colorScheme.surfaceVariant
-                        },
-                        animationSpec = ApexMotion.effectsSpec(),
-                        label = "ShieldContainerColor"
-                    )
-
-                    Surface(
-                        shape = rememberMorphingCornerShape(
-                            targetRadius = if (shieldsEnabled) 18.dp else 12.dp,
-                            label = "ShieldCornerMorph"
-                        ),
-                        color = shieldContainer,
-                        modifier = Modifier
-                            .minimumInteractiveComponentSize()
-                            .clickable(onClick = onShieldClick)
-                            .testTag("privacy_shield_button")
-                    ) {
-                        Box(
-                            contentAlignment = Alignment.Center,
-                            modifier = Modifier.size(48.dp)
+                    } else {
+                        val pillShape = rememberMorphingCornerShape(
+                            targetRadius = 22.dp,
+                            label = "AddressBarShapeMorph"
+                        )
+                        Surface(
+                            shape = pillShape,
+                            color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(44.dp)
+                                .clip(pillShape)
+                                .clickable(onClick = onAddressPillClick)
+                                .testTag("address_bar_container")
                         ) {
-                            BadgedBox(
-                                badge = {
-                                    if (shieldsEnabled && activeTab.blockedCountOnPage > 0) {
-                                        Badge(
-                                            containerColor = MaterialTheme.colorScheme.tertiary,
-                                            contentColor = MaterialTheme.colorScheme.onTertiary
-                                        ) {
-                                            Text(
-                                                text = activeTab.blockedCountOnPage.toString(),
-                                                style = EmphasizedTypography.badgeCounter
-                                            )
-                                        }
-                                    }
-                                }
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 14.dp)
                             ) {
                                 Icon(
-                                    imageVector = if (shieldsEnabled) Icons.Filled.Security else Icons.Outlined.Shield,
-                                    contentDescription = stringResource(R.string.cd_privacy_shield),
-                                    tint = if (shieldsEnabled) {
-                                        MaterialTheme.colorScheme.onPrimaryContainer
+                                    imageVector = Icons.Filled.Lock,
+                                    contentDescription = stringResource(R.string.cd_https_secure),
+                                    tint = if (activeTab.wasUpgradedToHttps) {
+                                        MaterialTheme.colorScheme.tertiary
                                     } else {
-                                        MaterialTheme.colorScheme.onSurfaceVariant
+                                        MaterialTheme.colorScheme.primary
                                     },
-                                    modifier = Modifier.size(22.dp)
+                                    modifier = Modifier.size(16.dp)
+                                )
+
+                                Spacer(modifier = Modifier.width(8.dp))
+
+                                Text(
+                                    text = activeTab.url,
+                                    style = EmphasizedTypography.addressBarActive,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.weight(1f)
                                 )
                             }
                         }
                     }
-                }
+                },
+                actions = {
+                    if (activeTab.isHomePage) {
+                        IconButton(
+                            onClick = onOpenAutomationClick,
+                            modifier = Modifier
+                                .minimumInteractiveComponentSize()
+                                .testTag("top_bar_extensions_button")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.AutoAwesome,
+                                contentDescription = stringResource(R.string.automation_panel_title),
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    } else {
+                        IconButton(
+                            onClick = onReloadClick,
+                            modifier = Modifier
+                                .minimumInteractiveComponentSize()
+                                .testTag("reload_page_button")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Refresh,
+                                contentDescription = stringResource(R.string.cd_reload_page)
+                            )
+                        }
+                    }
 
-                if (activeTab.isLoading) {
-                    LinearProgressIndicator(
-                        progress = { activeTab.progress.coerceIn(0.08f, 1f) },
-                        color = MaterialTheme.colorScheme.primary,
-                        trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                    IconButton(
+                        onClick = onOpenSettingsClick,
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .height(3.dp)
-                            .testTag("page_loading_indicator")
-                    )
-                }
+                            .minimumInteractiveComponentSize()
+                            .testTag("top_bar_settings_button")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.Settings,
+                            contentDescription = stringResource(R.string.cd_open_settings)
+                        )
+                    }
+                },
+                modifier = Modifier.testTag("material_top_app_bar")
+            )
+
+            if (activeTab.isLoading) {
+                LinearProgressIndicator(
+                    progress = { activeTab.progress.coerceIn(0.08f, 1f) },
+                    color = MaterialTheme.colorScheme.primary,
+                    trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(3.dp)
+                        .testTag("page_loading_indicator")
+                )
             }
         }
     }
@@ -283,13 +255,14 @@ fun CompactTopToolbar(
 /**
  * Ergonomic Bottom NavigationBar featuring:
  * Home • Bookmarks (opens screen on Home, bookmarks page on Web) • Search (opens Search Screen) • Tabs
- * plus the M3 Expressive Split Button for AI Extensions & Main Menu.
+ * plus the M3 Expressive Split Button for AI Extensions & Main Menu (including Settings).
  */
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun BraveBottomNavigationBar(
     isHomeActive: Boolean,
     isBookmarksScreenOpen: Boolean,
+    isSettingsScreenOpen: Boolean,
     isCurrentWebPageBookmarked: Boolean,
     isTabSwitcherOpen: Boolean,
     isSearchScreenOpen: Boolean,
@@ -300,11 +273,10 @@ fun BraveBottomNavigationBar(
     onSearchClick: () -> Unit,
     onTabsClick: () -> Unit,
     onOpenAutomation: (ExtensionModule) -> Unit,
+    onOpenSettings: () -> Unit,
     onNewTabClick: () -> Unit,
     onOpenBookmarksScreenExplicit: () -> Unit,
-    onOpenShieldSheet: () -> Unit,
     onToggleDesktopMode: (Boolean) -> Unit,
-    onCycleSeedPalette: () -> Unit,
     onResetStats: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -318,7 +290,12 @@ fun BraveBottomNavigationBar(
             .testTag("bottom_navigation_bar")
     ) {
         // 1. Home
-        val homeSelected = isHomeActive && !isBookmarksScreenOpen && !isTabSwitcherOpen && !isSearchScreenOpen
+        val homeSelected = isHomeActive &&
+            !isBookmarksScreenOpen &&
+            !isSettingsScreenOpen &&
+            !isTabSwitcherOpen &&
+            !isSearchScreenOpen
+
         NavigationBarItem(
             selected = homeSelected,
             onClick = onHomeClick,
@@ -334,12 +311,13 @@ fun BraveBottomNavigationBar(
 
         // 2. Bookmarks
         NavigationBarItem(
-            selected = isBookmarksScreenOpen || (!isHomeActive && isCurrentWebPageBookmarked && !isSearchScreenOpen),
+            selected = isBookmarksScreenOpen ||
+                (!isHomeActive && isCurrentWebPageBookmarked && !isSearchScreenOpen && !isSettingsScreenOpen),
             onClick = onBookmarksClick,
             icon = {
                 val bookmarkIcon = when {
                     isBookmarksScreenOpen -> Icons.Filled.Bookmarks
-                    isHomeActive -> Icons.Outlined.Bookmarks
+                    isHomeActive || isSettingsScreenOpen -> Icons.Outlined.Bookmarks
                     isCurrentWebPageBookmarked -> Icons.Filled.Bookmark
                     else -> Icons.Outlined.BookmarkAdd
                 }
@@ -352,7 +330,7 @@ fun BraveBottomNavigationBar(
             modifier = Modifier.testTag("nav_bookmarks_button")
         )
 
-        // 3. Search (Dedicated Search Screen with live search-engine suggestions)
+        // 3. Search
         NavigationBarItem(
             selected = isSearchScreenOpen,
             onClick = onSearchClick,
@@ -440,6 +418,18 @@ fun BraveBottomNavigationBar(
                         onDismissRequest = { menuExpanded = false }
                     ) {
                         DropdownMenuItem(
+                            text = { Text(stringResource(R.string.menu_settings)) },
+                            leadingIcon = {
+                                Icon(Icons.Outlined.Settings, contentDescription = null)
+                            },
+                            onClick = {
+                                menuExpanded = false
+                                onOpenSettings()
+                            },
+                            modifier = Modifier.testTag("menu_open_settings")
+                        )
+                        HorizontalDivider()
+                        DropdownMenuItem(
                             text = { Text(stringResource(R.string.ext_nano_title)) },
                             leadingIcon = {
                                 Icon(Icons.Filled.AutoAwesome, contentDescription = null)
@@ -479,14 +469,6 @@ fun BraveBottomNavigationBar(
                             }
                         )
                         DropdownMenuItem(
-                            text = { Text(stringResource(R.string.menu_privacy_sheet)) },
-                            leadingIcon = { Icon(Icons.Filled.Security, contentDescription = null) },
-                            onClick = {
-                                menuExpanded = false
-                                onOpenShieldSheet()
-                            }
-                        )
-                        DropdownMenuItem(
                             text = {
                                 Text(
                                     if (desktopViewportEnabled) "Desktop Viewport (On)"
@@ -499,14 +481,6 @@ fun BraveBottomNavigationBar(
                             onClick = {
                                 menuExpanded = false
                                 onToggleDesktopMode(!desktopViewportEnabled)
-                            }
-                        )
-                        DropdownMenuItem(
-                            text = { Text(stringResource(R.string.menu_cycle_seed)) },
-                            leadingIcon = { Icon(Icons.Filled.Palette, contentDescription = null) },
-                            onClick = {
-                                menuExpanded = false
-                                onCycleSeedPalette()
                             }
                         )
                         DropdownMenuItem(

@@ -151,6 +151,12 @@ class BrowserRepository(
     suspend fun setSearchEngine(engine: SearchEngineOption) =
         preferencesRepository.setSearchEngine(engine)
 
+    suspend fun setDynamicColorEnabled(enabled: Boolean) =
+        preferencesRepository.setDynamicColorEnabled(enabled)
+
+    suspend fun setSeedPaletteOrdinal(ordinal: Int) =
+        preferencesRepository.setSeedPaletteOrdinal(ordinal)
+
     suspend fun cycleSeedPalette() =
         preferencesRepository.cycleSeedPalette()
 }

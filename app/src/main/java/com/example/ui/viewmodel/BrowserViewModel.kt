@@ -25,6 +25,7 @@ import com.example.engine.PreloadCandidate
 import com.example.engine.PrivacyManager
 import com.example.engine.SearchSuggestionEngine
 import com.example.engine.SearchSuggestionItem
+import com.example.ui.theme.SeedPalettePreset
 import java.util.UUID
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -99,9 +100,9 @@ data class BrowserUiState(
     val isLoadingSuggestions: Boolean = false,
     val isTabSwitcherOpen: Boolean = false,
     val isBookmarksScreenOpen: Boolean = false,
+    val isSettingsScreenOpen: Boolean = false,
     val isAutomationOpen: Boolean = false,
     val activeExtension: ExtensionModule = ExtensionModule.NANO,
-    val isShieldSheetOpen: Boolean = false,
     val snackbarNotice: String? = null,
     val preloadCandidates: List<PreloadCandidate> = emptyList(),
     val nanoMessages: List<NanoChatMessage> = listOf(
@@ -235,6 +236,7 @@ class BrowserViewModel(
             it.copy(
                 isSearchScreenOpen = true,
                 isBookmarksScreenOpen = false,
+                isSettingsScreenOpen = false,
                 isTabSwitcherOpen = false,
                 isAutomationOpen = false,
                 isToolbarVisible = true,
@@ -362,6 +364,7 @@ class BrowserViewModel(
                 isSearchScreenOpen = false,
                 isLoadingSuggestions = false,
                 isBookmarksScreenOpen = false,
+                isSettingsScreenOpen = false,
                 isTabSwitcherOpen = false,
                 isToolbarVisible = true
             )
@@ -515,7 +518,11 @@ class BrowserViewModel(
         }
     }
 
-    fun createNewTab(initialUrl: String = "apex://home", groupId: String? = null) {
+    fun createNewTab(
+        initialUrl: String = "apex://home",
+        groupId: String? = null,
+        stayInSwitcher: Boolean = groupId != null
+    ) {
         val newTab = BrowserTab(
             title = if (initialUrl == "apex://home") "Home" else deriveShortTitle(initialUrl),
             url = initialUrl,
@@ -525,15 +532,49 @@ class BrowserViewModel(
             state.copy(
                 previousTabIndex = state.activeTabIndex,
                 tabs = state.tabs + newTab,
-                activeTabId = if (groupId == null) newTab.id else state.activeTabId,
-                isTabSwitcherOpen = groupId != null,
+                activeTabId = if (!stayInSwitcher) newTab.id else state.activeTabId,
+                isTabSwitcherOpen = stayInSwitcher,
                 isBookmarksScreenOpen = false,
+                isSettingsScreenOpen = false,
                 isSearchScreenOpen = false,
                 isToolbarVisible = true
             )
         }
         if (initialUrl != "apex://home") {
             submitNavigation(initialUrl, newTab.id)
+        }
+    }
+
+    fun createNewTabGroupFromSwitcher() {
+        _uiState.update { state ->
+            val newGroupId = "grp_${UUID.randomUUID()}"
+            val groupNumber = state.tabGroups.size + 1
+            val newGroup = TabGroupInfo(id = newGroupId, title = "Group $groupNumber")
+
+            val ungroupedTabs = state.tabs.filter { it.groupId == null }
+            val updatedTabs = if (ungroupedTabs.size >= 2) {
+                val idsToGroup = ungroupedTabs.takeLast(2).map { it.id }.toSet()
+                state.tabs.map { tab ->
+                    if (tab.id in idsToGroup) tab.copy(groupId = newGroupId) else tab
+                }
+            } else if (ungroupedTabs.size == 1) {
+                val existingUngroupedId = ungroupedTabs.single().id
+                val companionTab = BrowserTab(title = "Home", url = "apex://home", groupId = newGroupId)
+                state.tabs.map { tab ->
+                    if (tab.id == existingUngroupedId) tab.copy(groupId = newGroupId) else tab
+                } + companionTab
+            } else {
+                val t1 = BrowserTab(title = "Home", url = "apex://home", groupId = newGroupId)
+                val t2 = BrowserTab(title = "Home", url = "apex://home", groupId = newGroupId)
+                state.tabs + t1 + t2
+            }
+
+            val (cleanTabs, cleanGroups) = normalizeGroups(updatedTabs, state.tabGroups + newGroup)
+            state.copy(
+                tabs = cleanTabs,
+                tabGroups = cleanGroups,
+                isTabSwitcherOpen = true
+            )
         }
     }
 
@@ -758,6 +799,7 @@ class BrowserViewModel(
                     }
                 },
                 isBookmarksScreenOpen = false,
+                isSettingsScreenOpen = false,
                 isSearchScreenOpen = false,
                 isTabSwitcherOpen = false,
                 isAutomationOpen = false,
@@ -772,10 +814,11 @@ class BrowserViewModel(
             _uiState.update { it.copy(isBookmarksScreenOpen = false) }
             return
         }
-        if (state.activeTab.isHomePage) {
+        if (state.activeTab.isHomePage || state.isSettingsScreenOpen) {
             _uiState.update {
                 it.copy(
                     isBookmarksScreenOpen = true,
+                    isSettingsScreenOpen = false,
                     isSearchScreenOpen = false,
                     isTabSwitcherOpen = false,
                     isAutomationOpen = false,
@@ -789,6 +832,7 @@ class BrowserViewModel(
                 _uiState.update {
                     it.copy(
                         isTabSwitcherOpen = false,
+                        isSettingsScreenOpen = false,
                         isSearchScreenOpen = false,
                         snackbarNotice = "Bookmarked '${active.title}'"
                     )
@@ -801,8 +845,22 @@ class BrowserViewModel(
         _uiState.update {
             it.copy(
                 isBookmarksScreenOpen = open,
+                isSettingsScreenOpen = if (open) false else it.isSettingsScreenOpen,
                 isSearchScreenOpen = if (open) false else it.isSearchScreenOpen,
                 isTabSwitcherOpen = if (open) false else it.isTabSwitcherOpen,
+                isToolbarVisible = true
+            )
+        }
+    }
+
+    fun setSettingsScreenOpen(open: Boolean) {
+        _uiState.update {
+            it.copy(
+                isSettingsScreenOpen = open,
+                isBookmarksScreenOpen = if (open) false else it.isBookmarksScreenOpen,
+                isSearchScreenOpen = if (open) false else it.isSearchScreenOpen,
+                isTabSwitcherOpen = if (open) false else it.isTabSwitcherOpen,
+                isAutomationOpen = if (open) false else it.isAutomationOpen,
                 isToolbarVisible = true
             )
         }
@@ -832,6 +890,7 @@ class BrowserViewModel(
                 isTabSwitcherOpen = open,
                 expandedGroupId = if (!open) null else it.expandedGroupId,
                 isBookmarksScreenOpen = if (open) false else it.isBookmarksScreenOpen,
+                isSettingsScreenOpen = if (open) false else it.isSettingsScreenOpen,
                 isSearchScreenOpen = if (open) false else it.isSearchScreenOpen,
                 isToolbarVisible = true
             )
@@ -843,6 +902,7 @@ class BrowserViewModel(
             it.copy(
                 isAutomationOpen = open,
                 activeExtension = module,
+                isSettingsScreenOpen = if (open) false else it.isSettingsScreenOpen,
                 isSearchScreenOpen = if (open) false else it.isSearchScreenOpen,
                 isToolbarVisible = true
             )
@@ -853,11 +913,7 @@ class BrowserViewModel(
         _uiState.update { it.copy(activeExtension = module) }
     }
 
-    fun setShieldSheetOpen(open: Boolean) {
-        _uiState.update { it.copy(isShieldSheetOpen = open) }
-    }
-
-    // --- Preferences & Privacy Toggles ---
+    // --- Preferences & Settings Controls ---
 
     fun toggleShields(enabled: Boolean) {
         viewModelScope.launch { repository.setShieldsEnabled(enabled) }
@@ -879,12 +935,25 @@ class BrowserViewModel(
         viewModelScope.launch { repository.setDesktopViewportEnabled(enabled) }
     }
 
+    fun toggleDynamicColor(enabled: Boolean) {
+        viewModelScope.launch { repository.setDynamicColorEnabled(enabled) }
+    }
+
+    fun selectSeedPalette(preset: SeedPalettePreset) {
+        viewModelScope.launch { repository.setSeedPaletteOrdinal(preset.ordinal) }
+    }
+
     fun cycleSeedTheme() {
         viewModelScope.launch { repository.cycleSeedPalette() }
     }
 
     fun resetPrivacyStats() {
-        viewModelScope.launch { repository.resetTelemetryStats() }
+        viewModelScope.launch {
+            repository.resetTelemetryStats()
+            _uiState.update {
+                it.copy(snackbarNotice = "Search history and browsing data cleared")
+            }
+        }
     }
 
     // --- Extension 1: Nano Multi-Agent Automation ---

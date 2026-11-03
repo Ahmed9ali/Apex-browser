@@ -1,12 +1,13 @@
 <resources>
     <string name="app_name">Apex Browser</string>
 
-    <!-- Address & Toolbar -->
+    <!-- Material 3 App Bar & Address Field -->
     <string name="address_bar_hint">Search or type web address</string>
-    <string name="cd_privacy_shield">Apex Privacy Shield</string>
-    <string name="cd_reload_page">Reload or stop page</string>
+    <string name="cd_reload_page">Reload page</string>
     <string name="cd_clear_input">Clear input</string>
     <string name="cd_https_secure">HTTPS encrypted connection</string>
+    <string name="cd_open_settings">Open Settings</string>
+    <string name="cd_navigate_back">Navigate back</string>
 
     <!-- Bottom Navigation -->
     <string name="nav_home">Home</string>
@@ -17,40 +18,62 @@
     <string name="cd_main_menu_more">More browser options</string>
     <string name="fab_new_tab">New Tab</string>
 
+    <!-- Home Page -->
+    <string name="home_search_placeholder">Search %1$s or type a URL</string>
+    <string name="home_bookmarks_section">Bookmarks</string>
+    <string name="home_bookmarks_manage">Manage</string>
+    <string name="home_fresh_bookmarks_title">No Shortcuts Pinned Yet</string>
+    <string name="home_fresh_bookmarks_hint">Bookmark any webpage from the bottom bar to pin it to your Home screen.</string>
+
     <!-- Dedicated Search Screen -->
     <string name="search_screen_hint">Search %1$s or enter URL</string>
-    <string name="search_engine_label">Search Engine</string>
     <string name="search_suggestions_header">%1$s Suggestions</string>
     <string name="search_recent_header">Recent Searches</string>
     <string name="search_clear_history">Clear All</string>
-    <string name="search_fresh_empty_title">Private Search Ready</string>
-    <string name="search_fresh_empty_subtitle">Start typing above for live %1$s suggestions or enter any web address.</string>
+    <string name="search_fresh_empty_title">Ready to Search</string>
+    <string name="search_fresh_empty_subtitle">Type a query for live %1$s suggestions or enter any web address. You can change your default search engine in Settings.</string>
     <string name="cd_fill_suggestion">Copy suggestion to search box</string>
     <string name="cd_remove_history_item">Remove from search history</string>
     <string name="cd_close_search">Close search</string>
 
+    <!-- Settings Screen -->
+    <string name="settings_title">Settings</string>
+    <string name="settings_search_engine_section">Default Search Engine</string>
+    <string name="settings_search_engine_subtitle">Used for the Home search field, address bar queries, and live autocomplete suggestions.</string>
+    <string name="settings_privacy_section">Privacy &amp; Security</string>
+    <string name="settings_shields_title">Ad &amp; Tracker Blocker</string>
+    <string name="settings_shields_desc">Block known third-party ad networks and tracking scripts</string>
+    <string name="settings_https_title">HTTPS-Only Upgrade</string>
+    <string name="settings_https_desc">Automatically upgrade unencrypted HTTP links to HTTPS</string>
+    <string name="settings_script_guard_title">Strict Script Guard</string>
+    <string name="settings_script_guard_desc">Restrict JavaScript execution on untrusted pages</string>
+    <string name="settings_browsing_section">Browsing &amp; Performance</string>
+    <string name="settings_preload_title">Smart Link Preloading</string>
+    <string name="settings_preload_desc">Warm cache for high-probability links on the active page</string>
+    <string name="settings_desktop_title">Desktop Site Viewport</string>
+    <string name="settings_desktop_desc">Request full desktop layouts instead of mobile pages</string>
+    <string name="settings_appearance_section">Appearance &amp; Theme</string>
+    <string name="settings_dynamic_color_title">Dynamic System Color</string>
+    <string name="settings_dynamic_color_desc">Adapt browser surfaces to your Android wallpaper palette</string>
+    <string name="settings_seed_palette_label">Material 3 Seed Palette</string>
+    <string name="settings_data_section">Browsing Data</string>
+    <string name="settings_clear_data_button">Clear Search History &amp; Reset Data</string>
+    <string name="settings_data_cleared_notice">Search history and browsing data cleared</string>
+
     <!-- Bookmarks -->
-    <string name="bookmarks_screen_title">Saved Bookmarks</string>
+    <string name="bookmarks_screen_title">Bookmarks</string>
     <string name="bookmarks_empty_title">No Bookmarks Yet</string>
     <string name="bookmarks_empty_subtitle">Visit any website and tap Bookmarks on the bottom bar to save it here.</string>
     <string name="cd_delete_bookmark">Remove bookmark</string>
     <string name="action_view_bookmarks">View</string>
 
-    <!-- Privacy Dashboard -->
-    <string name="privacy_dashboard_title">Apex Privacy Telemetry</string>
-    <string name="privacy_dashboard_subtitle">Live local tracker &amp; ad interception</string>
-    <string name="stat_trackers_blocked">Trackers &amp; Ads</string>
-    <string name="stat_https_upgrades">HTTPS Upgrades</string>
-    <string name="stat_data_saved">Data Saved</string>
-    <string name="stat_time_saved">Time Saved</string>
-    <string name="chip_shields_up">Shields Active</string>
-    <string name="chip_https_only">HTTPS Upgrade</string>
-    <string name="chip_smart_preload">Turbo Preload</string>
-    <string name="chip_script_guard">Script Guard</string>
-    <string name="home_bookmarks_section">Your Bookmarks</string>
-    <string name="home_fresh_bookmarks_hint">Pages you bookmark will appear here for one-tap access.</string>
-
     <!-- Tab Switcher & Tab Groups -->
+    <string name="tabs_pill_tabs">Tabs</string>
+    <string name="tabs_pill_groups">Groups</string>
+    <string name="tabs_action_add_tab">Add Tab</string>
+    <string name="tabs_action_new_group">Group</string>
+    <string name="tabs_groups_empty_title">No Tab Groups Yet</string>
+    <string name="tabs_groups_empty_subtitle">Drag one tab onto another or tap Group in the center pill below to bundle tabs together.</string>
     <string name="tabs_sheet_title">Tabs &amp; Groups</string>
     <string name="tabs_drag_subtitle">Drag any tab onto another to create a group</string>
     <string name="tabs_close_all">Reset</string>
@@ -72,10 +95,9 @@
     <string name="retriever_save_rule">Save Rule</string>
 
     <!-- Menu -->
-    <string name="menu_new_tab">New Private Tab</string>
-    <string name="menu_open_bookmarks">Open Bookmarks</string>
-    <string name="menu_privacy_sheet">Shield &amp; Preload Inspector</string>
+    <string name="menu_settings">Settings</string>
+    <string name="menu_new_tab">New Tab</string>
+    <string name="menu_open_bookmarks">Bookmarks</string>
     <string name="menu_desktop_mode">Desktop Viewport</string>
-    <string name="menu_cycle_seed">Cycle M3 Seed Palette</string>
-    <string name="menu_clear_data">Reset Telemetry &amp; History</string>
+    <string name="menu_clear_data">Clear Browsing Data</string>
 </resources>

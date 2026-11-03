@@ -8,6 +8,10 @@ import com.example.data.local.PrivacyStatSummaryEntity
 import com.example.data.preferences.SearchEngineOption
 import com.example.engine.PrivacyManager
 import com.example.engine.SearchSuggestionEngine
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.unit.dp
+import com.example.ui.browser.GroupedListSpacing
+import com.example.ui.browser.groupedListItemShape
 import com.example.ui.theme.ApexColorSchemeBuilder
 import com.example.ui.theme.SeedPalettePreset
 import com.example.ui.viewmodel.BrowserTab
@@ -32,6 +36,12 @@ class ExampleRobolectricTest {
         assertTrue(freshState.tabGroups.isEmpty())
         assertTrue(freshState.searchSuggestions.isEmpty())
         assertTrue(freshState.searchQuery.isEmpty())
+        assertFalse(freshState.isSettingsScreenOpen)
+
+        SearchEngineOption.entries.forEach { option ->
+            assertTrue(option.description.isNotBlank())
+            assertTrue(option.searchUrlTemplate.contains("%s"))
+        }
 
         val freshStats = PrivacyStatSummaryEntity()
         assertEquals(0, freshStats.trackersBlocked)
@@ -188,5 +198,29 @@ class ExampleRobolectricTest {
             rule = rule
         )
         assertTrue(records.size >= 8)
+    }
+
+    @Test
+    fun `verify Material 3 Grouped List item shapes for single first middle and last items`() {
+        assertTrue(GroupedListSpacing > 0.dp)
+
+        val single = groupedListItemShape(index = 0, totalCount = 1)
+        val first = groupedListItemShape(index = 0, totalCount = 3)
+        val middle = groupedListItemShape(index = 1, totalCount = 3)
+        val last = groupedListItemShape(index = 2, totalCount = 3)
+
+        assertEquals(RoundedCornerShape(24.dp), single)
+        assertEquals(
+            RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp, bottomStart = 5.dp, bottomEnd = 5.dp),
+            first
+        )
+        assertEquals(RoundedCornerShape(5.dp), middle)
+        assertEquals(
+            RoundedCornerShape(topStart = 5.dp, topEnd = 5.dp, bottomStart = 24.dp, bottomEnd = 24.dp),
+            last
+        )
+        assertNotEquals(first, middle)
+        assertNotEquals(middle, last)
+        assertNotEquals(first, last)
     }
 }

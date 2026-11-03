@@ -23,36 +23,42 @@ enum class SearchEngineOption(
     val id: String,
     val displayName: String,
     val shortBadge: String,
+    val description: String,
     val searchUrlTemplate: String
 ) {
     DUCKDUCKGO(
         id = "duckduckgo",
         displayName = "DuckDuckGo",
         shortBadge = "DDG",
+        description = "Private web search without user profiling",
         searchUrlTemplate = "https://duckduckgo.com/?q=%s"
     ),
     GOOGLE(
         id = "google",
         displayName = "Google",
         shortBadge = "G",
+        description = "Comprehensive global web index and instant answers",
         searchUrlTemplate = "https://www.google.com/search?q=%s"
     ),
     BRAVE(
         id = "brave",
         displayName = "Brave Search",
         shortBadge = "BRV",
+        description = "Independent search index with built-in privacy",
         searchUrlTemplate = "https://search.brave.com/search?q=%s"
     ),
     BING(
         id = "bing",
         displayName = "Bing",
         shortBadge = "BNG",
+        description = "Web search, news, and rich media results",
         searchUrlTemplate = "https://www.bing.com/search?q=%s"
     ),
     WIKIPEDIA(
         id = "wikipedia",
         displayName = "Wikipedia",
         shortBadge = "WIKI",
+        description = "Direct encyclopedia article lookup and summaries",
         searchUrlTemplate = "https://en.wikipedia.org/w/index.php?search=%s"
     );
 
@@ -140,6 +146,17 @@ class UserPreferencesRepository(private val dataStore: DataStore<Preferences>) {
 
     suspend fun setSearchEngine(engine: SearchEngineOption) {
         dataStore.edit { it[Keys.SEARCH_ENGINE_ID] = engine.id }
+    }
+
+    suspend fun setDynamicColorEnabled(enabled: Boolean) {
+        dataStore.edit { it[Keys.DYNAMIC_COLOR] = enabled }
+    }
+
+    suspend fun setSeedPaletteOrdinal(ordinal: Int) {
+        dataStore.edit { prefs ->
+            prefs[Keys.DYNAMIC_COLOR] = false
+            prefs[Keys.SEED_ORDINAL] = ordinal.coerceIn(0, SeedPalettePreset.entries.lastIndex)
+        }
     }
 
     suspend fun cycleSeedPalette() {

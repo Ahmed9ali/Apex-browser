@@ -43,6 +43,7 @@ import com.example.R
 import com.example.ui.theme.ApexMotion
 import com.example.ui.theme.LocalReducedMotion
 import com.example.ui.viewmodel.BrowserViewModel
+import com.example.ui.viewmodel.ExtensionModule
 
 @Composable
 fun BrowserScreen(
@@ -52,8 +53,6 @@ fun BrowserScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val preferences by viewModel.preferencesState.collectAsStateWithLifecycle()
-    val privacyStats by viewModel.privacyStatsState.collectAsStateWithLifecycle()
-    val blockedLogs by viewModel.blockedLogsState.collectAsStateWithLifecycle()
     val extractionRules by viewModel.extractionRulesState.collectAsStateWithLifecycle()
     val bookmarks by viewModel.bookmarksState.collectAsStateWithLifecycle()
     val searchHistory by viewModel.searchHistoryState.collectAsStateWithLifecycle()
@@ -73,13 +72,14 @@ fun BrowserScreen(
 
     LaunchedEffect(uiState.snackbarNotice) {
         val notice = uiState.snackbarNotice ?: return@LaunchedEffect
+        val isBookmarkNotice = notice.startsWith("Bookmarked")
         val result = snackbarHostState.showSnackbar(
             message = notice,
-            actionLabel = viewBookmarksLabel,
+            actionLabel = if (isBookmarkNotice) viewBookmarksLabel else null,
             duration = SnackbarDuration.Short
         )
         viewModel.consumeSnackbarNotice()
-        if (result == SnackbarResult.ActionPerformed) {
+        if (isBookmarkNotice && result == SnackbarResult.ActionPerformed) {
             viewModel.setBookmarksScreenOpen(true)
         }
     }
@@ -88,6 +88,7 @@ fun BrowserScreen(
         enabled = canNavigateBack &&
             !uiState.isTabSwitcherOpen &&
             !uiState.isBookmarksScreenOpen &&
+            !uiState.isSettingsScreenOpen &&
             !uiState.isSearchScreenOpen &&
             !uiState.isAutomationOpen
     ) {
@@ -98,18 +99,23 @@ fun BrowserScreen(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
         topBar = {
-            if (!uiState.isSearchScreenOpen) {
+            if (!uiState.isSearchScreenOpen &&
+                !uiState.isSettingsScreenOpen &&
+                !uiState.isBookmarksScreenOpen &&
+                !uiState.isTabSwitcherOpen
+            ) {
                 Column(modifier = Modifier.fillMaxWidth()) {
                     CompactTopToolbar(
                         visible = uiState.isToolbarVisible || activeTab.isHomePage,
                         activeTab = activeTab,
-                        searchEngine = preferences.searchEngine,
-                        shieldsEnabled = preferences.shieldsEnabled,
                         onAddressPillClick = {
                             viewModel.openSearchScreen(prefillCurrentUrl = !activeTab.isHomePage)
                         },
                         onReloadClick = viewModel::reloadActiveTab,
-                        onShieldClick = { viewModel.setShieldSheetOpen(true) }
+                        onOpenSettingsClick = { viewModel.setSettingsScreenOpen(true) },
+                        onOpenAutomationClick = {
+                            viewModel.setAutomationOpen(true, ExtensionModule.NANO)
+                        }
                     )
 
                     if (isWideScreen) {
@@ -128,6 +134,7 @@ fun BrowserScreen(
             if (activeTab.isHomePage &&
                 !uiState.isTabSwitcherOpen &&
                 !uiState.isBookmarksScreenOpen &&
+                !uiState.isSettingsScreenOpen &&
                 !uiState.isSearchScreenOpen &&
                 !uiState.isAutomationOpen
             ) {
@@ -145,32 +152,34 @@ fun BrowserScreen(
             }
         },
         bottomBar = {
-            BraveBottomNavigationBar(
-                isHomeActive = activeTab.isHomePage,
-                isBookmarksScreenOpen = uiState.isBookmarksScreenOpen,
-                isCurrentWebPageBookmarked = isCurrentWebPageBookmarked,
-                isTabSwitcherOpen = uiState.isTabSwitcherOpen,
-                isSearchScreenOpen = uiState.isSearchScreenOpen,
-                openTabCount = uiState.tabs.size,
-                desktopViewportEnabled = preferences.desktopViewportEnabled,
-                onHomeClick = viewModel::onBottomHomePressed,
-                onBookmarksClick = viewModel::onBottomBookmarksPressed,
-                onSearchClick = {
-                    if (uiState.isSearchScreenOpen) {
-                        viewModel.closeSearchScreen()
-                    } else {
-                        viewModel.openSearchScreen(prefillCurrentUrl = false)
-                    }
-                },
-                onTabsClick = { viewModel.setTabSwitcherOpen(!uiState.isTabSwitcherOpen) },
-                onOpenAutomation = { module -> viewModel.setAutomationOpen(true, module) },
-                onNewTabClick = { viewModel.createNewTab() },
-                onOpenBookmarksScreenExplicit = { viewModel.setBookmarksScreenOpen(true) },
-                onOpenShieldSheet = { viewModel.setShieldSheetOpen(true) },
-                onToggleDesktopMode = viewModel::toggleDesktopViewport,
-                onCycleSeedPalette = viewModel::cycleSeedTheme,
-                onResetStats = viewModel::resetPrivacyStats
-            )
+            if (!uiState.isTabSwitcherOpen) {
+                BraveBottomNavigationBar(
+                    isHomeActive = activeTab.isHomePage,
+                    isBookmarksScreenOpen = uiState.isBookmarksScreenOpen,
+                    isSettingsScreenOpen = uiState.isSettingsScreenOpen,
+                    isCurrentWebPageBookmarked = isCurrentWebPageBookmarked,
+                    isTabSwitcherOpen = uiState.isTabSwitcherOpen,
+                    isSearchScreenOpen = uiState.isSearchScreenOpen,
+                    openTabCount = uiState.tabs.size,
+                    desktopViewportEnabled = preferences.desktopViewportEnabled,
+                    onHomeClick = viewModel::onBottomHomePressed,
+                    onBookmarksClick = viewModel::onBottomBookmarksPressed,
+                    onSearchClick = {
+                        if (uiState.isSearchScreenOpen) {
+                            viewModel.closeSearchScreen()
+                        } else {
+                            viewModel.openSearchScreen(prefillCurrentUrl = false)
+                        }
+                    },
+                    onTabsClick = { viewModel.setTabSwitcherOpen(!uiState.isTabSwitcherOpen) },
+                    onOpenAutomation = { module -> viewModel.setAutomationOpen(true, module) },
+                    onOpenSettings = { viewModel.setSettingsScreenOpen(true) },
+                    onNewTabClick = { viewModel.createNewTab() },
+                    onOpenBookmarksScreenExplicit = { viewModel.setBookmarksScreenOpen(true) },
+                    onToggleDesktopMode = viewModel::toggleDesktopViewport,
+                    onResetStats = viewModel::resetPrivacyStats
+                )
+            }
         },
         modifier = modifier.fillMaxSize()
     ) { innerPadding ->
@@ -199,22 +208,18 @@ fun BrowserScreen(
                         label = "SharedAxisTabContent"
                     ) { currentTab ->
                         if (currentTab.isHomePage) {
-                            StartPagePrivacyHub(
-                                privacyStats = privacyStats,
+                            StartPageHome(
                                 preferences = preferences,
                                 bookmarks = bookmarks,
                                 onOpenSearchScreen = {
                                     viewModel.openSearchScreen(prefillCurrentUrl = false)
                                 },
-                                onToggleShields = viewModel::toggleShields,
-                                onToggleHttps = viewModel::toggleHttpsUpgrade,
-                                onTogglePreload = viewModel::toggleAggressivePreload,
-                                onToggleScriptGuard = viewModel::toggleScriptGuard,
                                 onSelectDestination = { url ->
                                     viewModel.submitNavigation(url, currentTab.id)
                                 },
-                                onOpenExtension = { ext ->
-                                    viewModel.setAutomationOpen(true, ext)
+                                onDeleteBookmark = viewModel::deleteBookmark,
+                                onOpenBookmarksScreen = {
+                                    viewModel.setBookmarksScreenOpen(true)
                                 }
                             )
                         } else {
@@ -330,7 +335,7 @@ fun BrowserScreen(
                 }
             }
 
-            // Dedicated Search Screen with Search-Engine Suggestions
+            // Dedicated Search Screen (Search Engine selection moved to Settings)
             AnimatedVisibility(
                 visible = uiState.isSearchScreenOpen,
                 enter = if (reducedMotion) fadeIn() else enterOverlay,
@@ -344,12 +349,34 @@ fun BrowserScreen(
                     isLoadingSuggestions = uiState.isLoadingSuggestions,
                     recentHistory = searchHistory,
                     onQueryChange = viewModel::onSearchQueryChanged,
-                    onSelectEngine = viewModel::selectSearchEngine,
                     onSubmitSearch = { submitted -> viewModel.submitNavigation(submitted) },
                     onFillQuery = viewModel::onSearchQueryChanged,
                     onDeleteHistoryItem = viewModel::deleteSearchHistoryItem,
                     onClearAllHistory = viewModel::clearAllSearchHistory,
+                    onOpenSettings = { viewModel.setSettingsScreenOpen(true) },
                     onDismiss = viewModel::closeSearchScreen
+                )
+            }
+
+            // Settings Screen Overlay (Default Search Engine, Privacy, Performance, Theme, Data)
+            AnimatedVisibility(
+                visible = uiState.isSettingsScreenOpen,
+                enter = if (reducedMotion) fadeIn() else enterOverlay,
+                exit = if (reducedMotion) fadeOut() else exitOverlay,
+                modifier = Modifier.fillMaxSize()
+            ) {
+                SettingsScreenOverlay(
+                    preferences = preferences,
+                    onSelectSearchEngine = viewModel::selectSearchEngine,
+                    onToggleShields = viewModel::toggleShields,
+                    onToggleHttpsUpgrade = viewModel::toggleHttpsUpgrade,
+                    onToggleScriptGuard = viewModel::toggleScriptGuard,
+                    onToggleSmartPreload = viewModel::toggleAggressivePreload,
+                    onToggleDesktopViewport = viewModel::toggleDesktopViewport,
+                    onToggleDynamicColor = viewModel::toggleDynamicColor,
+                    onSelectSeedPalette = viewModel::selectSeedPalette,
+                    onClearBrowsingData = viewModel::resetPrivacyStats,
+                    onDismiss = { viewModel.setSettingsScreenOpen(false) }
                 )
             }
 
@@ -368,7 +395,7 @@ fun BrowserScreen(
                 )
             }
 
-            // Draggable Grid Tab Switcher Overlay
+            // Draggable Grid Tab Switcher Overlay (No Bottom Nav — Centered Pills)
             AnimatedVisibility(
                 visible = uiState.isTabSwitcherOpen,
                 enter = if (reducedMotion) fadeIn() else enterOverlay,
@@ -388,26 +415,11 @@ fun BrowserScreen(
                     onAddTabToGroup = { grpId -> viewModel.createNewTab(groupId = grpId) },
                     onUngroupTab = viewModel::ungroupTab,
                     onNewTab = { viewModel.createNewTab() },
+                    onCreateGroup = viewModel::createNewTabGroupFromSwitcher,
                     onResetAllTabs = viewModel::resetAllTabs,
                     onDismiss = { viewModel.setTabSwitcherOpen(false) }
                 )
             }
         }
-    }
-
-    if (uiState.isShieldSheetOpen) {
-        ShieldAndPreloadModalSheet(
-            activeTab = activeTab,
-            privacyStats = privacyStats,
-            preferences = preferences,
-            preloadCandidates = uiState.preloadCandidates,
-            blockedLogs = blockedLogs,
-            onToggleShields = viewModel::toggleShields,
-            onToggleHttps = viewModel::toggleHttpsUpgrade,
-            onTogglePreload = viewModel::toggleAggressivePreload,
-            onToggleScriptGuard = viewModel::toggleScriptGuard,
-            onNavigateCandidate = { url -> viewModel.submitNavigation(url) },
-            onDismiss = { viewModel.setShieldSheetOpen(false) }
-        )
     }
 }

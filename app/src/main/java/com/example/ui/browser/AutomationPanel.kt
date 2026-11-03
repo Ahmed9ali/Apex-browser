@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
@@ -481,9 +482,13 @@ private fun NanoAgentResponseCard(message: NanoChatMessage) {
                 }
 
                 AnimatedVisibility(visible = logExpanded) {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        message.steps.forEach { step ->
-                            ReasoningStepRow(step = step)
+                    Column(verticalArrangement = Arrangement.spacedBy(GroupedListSpacing)) {
+                        message.steps.forEachIndexed { index, step ->
+                            ReasoningStepRow(
+                                step = step,
+                                index = index,
+                                totalCount = message.steps.size
+                            )
                         }
                     }
                 }
@@ -499,7 +504,11 @@ private fun NanoAgentResponseCard(message: NanoChatMessage) {
 }
 
 @Composable
-private fun ReasoningStepRow(step: NanoReasoningStep) {
+private fun ReasoningStepRow(
+    step: NanoReasoningStep,
+    index: Int,
+    totalCount: Int
+) {
     val roleContainer = when (step.role) {
         AgentRole.PLANNER -> MaterialTheme.colorScheme.secondaryContainer
         AgentRole.NAVIGATOR -> MaterialTheme.colorScheme.primaryContainer
@@ -512,7 +521,12 @@ private fun ReasoningStepRow(step: NanoReasoningStep) {
     }
 
     Surface(
-        shape = MaterialTheme.shapes.small,
+        shape = groupedListItemShape(
+            index = index,
+            totalCount = totalCount,
+            outerRadius = 18.dp,
+            innerRadius = 4.dp
+        ),
         color = MaterialTheme.colorScheme.surfaceContainerLowest,
         modifier = Modifier.fillMaxWidth()
     ) {
@@ -792,7 +806,7 @@ private fun RetrieverScraperWorkspace(
             }
         } else {
             LazyColumn(
-                verticalArrangement = Arrangement.spacedBy(6.dp),
+                verticalArrangement = Arrangement.spacedBy(GroupedListSpacing),
                 contentPadding = PaddingValues(bottom = 12.dp),
                 modifier = Modifier
                     .fillMaxWidth()
@@ -800,16 +814,22 @@ private fun RetrieverScraperWorkspace(
                     .testTag("retriever_results_list")
             ) {
                 if (displayMode == RetrieverDisplayMode.TABLE) {
-                    item {
+                    val totalTableItems = records.size + 1
+                    item(key = "retriever_table_header") {
                         Surface(
-                            shape = MaterialTheme.shapes.small,
+                            shape = groupedListItemShape(
+                                index = 0,
+                                totalCount = totalTableItems,
+                                outerRadius = 22.dp,
+                                innerRadius = 4.dp
+                            ),
                             color = MaterialTheme.colorScheme.secondaryContainer,
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(horizontal = 12.dp, vertical = 8.dp)
+                                    .padding(horizontal = 14.dp, vertical = 10.dp)
                             ) {
                                 Text(
                                     text = "Tab",
@@ -833,9 +853,17 @@ private fun RetrieverScraperWorkspace(
                         }
                     }
 
-                    items(records, key = { it.id }) { rec ->
+                    itemsIndexed(
+                        items = records,
+                        key = { _, rec -> rec.id }
+                    ) { index, rec ->
                         Surface(
-                            shape = MaterialTheme.shapes.extraSmall,
+                            shape = groupedListItemShape(
+                                index = index + 1,
+                                totalCount = totalTableItems,
+                                outerRadius = 22.dp,
+                                innerRadius = 4.dp
+                            ),
                             color = MaterialTheme.colorScheme.surfaceContainerHigh,
                             modifier = Modifier.fillMaxWidth()
                         ) {
@@ -843,7 +871,7 @@ private fun RetrieverScraperWorkspace(
                                 verticalAlignment = Alignment.CenterVertically,
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(horizontal = 12.dp, vertical = 10.dp)
+                                    .padding(horizontal = 14.dp, vertical = 11.dp)
                             ) {
                                 Text(
                                     text = rec.tabTitle,
@@ -877,17 +905,23 @@ private fun RetrieverScraperWorkspace(
                         }
                     }
                 } else {
-                    items(records, key = { it.id }) { rec ->
-                        Card(
-                            shape = MaterialTheme.shapes.medium,
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+                    itemsIndexed(
+                        items = records,
+                        key = { _, rec -> rec.id }
+                    ) { index, rec ->
+                        Surface(
+                            shape = groupedListItemShape(
+                                index = index,
+                                totalCount = records.size,
+                                outerRadius = 22.dp,
+                                innerRadius = 5.dp
                             ),
+                            color = MaterialTheme.colorScheme.surfaceContainerHigh,
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Column(
                                 verticalArrangement = Arrangement.spacedBy(4.dp),
-                                modifier = Modifier.padding(12.dp)
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
                             ) {
                                 Row(
                                     horizontalArrangement = Arrangement.SpaceBetween,

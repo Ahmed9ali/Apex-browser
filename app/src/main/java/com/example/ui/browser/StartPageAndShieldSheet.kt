@@ -1,11 +1,8 @@
 package com.example.ui.browser
 
-import androidx.compose.animation.core.animateIntAsState
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,80 +18,49 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.filled.Bookmark
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.Public
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Security
-import androidx.compose.material.icons.outlined.Bookmarks
-import androidx.compose.material.icons.outlined.Speed
-import androidx.compose.material.icons.outlined.TableChart
+import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.R
-import com.example.data.local.BlockedDomainLogEntity
 import com.example.data.local.BookmarkEntity
-import com.example.data.local.PrivacyStatSummaryEntity
 import com.example.data.preferences.BrowserPreferences
-import com.example.engine.PreloadCandidate
-import com.example.engine.PrivacyManager
-import com.example.ui.theme.ApexMotion
 import com.example.ui.theme.EmphasizedTypography
-import com.example.ui.viewmodel.BrowserTab
-import com.example.ui.viewmodel.ExtensionModule
+import java.net.URI
 
 @Composable
-fun StartPagePrivacyHub(
-    privacyStats: PrivacyStatSummaryEntity,
+fun StartPageHome(
     preferences: BrowserPreferences,
     bookmarks: List<BookmarkEntity>,
     onOpenSearchScreen: () -> Unit,
-    onToggleShields: (Boolean) -> Unit,
-    onToggleHttps: (Boolean) -> Unit,
-    onTogglePreload: (Boolean) -> Unit,
-    onToggleScriptGuard: (Boolean) -> Unit,
     onSelectDestination: (String) -> Unit,
-    onOpenExtension: (ExtensionModule) -> Unit,
+    onDeleteBookmark: (Long) -> Unit,
+    onOpenBookmarksScreen: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val totalBlocked = privacyStats.trackersBlocked + privacyStats.adsBlocked
-    val animatedBlocked by animateIntAsState(
-        targetValue = totalBlocked,
-        animationSpec = ApexMotion.spatialSpec(),
-        label = "AnimatedBlockedStat"
-    )
-    val animatedHttps by animateIntAsState(
-        targetValue = privacyStats.httpsUpgrades,
-        animationSpec = ApexMotion.spatialSpec(),
-        label = "AnimatedHttpsStat"
-    )
+    val bookmarkRows = remember(bookmarks) {
+        bookmarks.take(12).chunked(2)
+    }
 
     Box(
         contentAlignment = Alignment.TopCenter,
@@ -104,139 +70,26 @@ fun StartPagePrivacyHub(
             .testTag("start_page_hub")
     ) {
         LazyColumn(
-            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 104.dp),
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 28.dp, bottom = 104.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
             modifier = Modifier
                 .fillMaxWidth()
-                .widthIn(max = 840.dp)
+                .widthIn(max = 760.dp)
         ) {
-            // Hero Banner Card
-            item {
-                Card(
-                    shape = MaterialTheme.shapes.extraLarge,
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
-                    ),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(168.dp)
-                    ) {
-                        Image(
-                            painter = painterResource(id = R.drawable.img_apex_hero_1793695901815),
-                            contentDescription = stringResource(R.string.privacy_dashboard_title),
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier.fillMaxSize()
-                        )
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .background(
-                                    Brush.verticalGradient(
-                                        colors = listOf(
-                                            MaterialTheme.colorScheme.scrim.copy(alpha = 0.18f),
-                                            MaterialTheme.colorScheme.surfaceContainerLowest.copy(alpha = 0.90f)
-                                        )
-                                    )
-                                )
-                        )
-                        Column(
-                            verticalArrangement = Arrangement.SpaceBetween,
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(18.dp)
-                        ) {
-                            Surface(
-                                shape = MaterialTheme.shapes.large,
-                                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.92f)
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Filled.Security,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                                        modifier = Modifier.size(15.dp)
-                                    )
-                                    Text(
-                                        text = if (preferences.shieldsEnabled) {
-                                            "Apex Shields Active • ${preferences.searchEngine.displayName}"
-                                        } else {
-                                            "Shields Paused"
-                                        },
-                                        style = MaterialTheme.typography.labelMedium,
-                                        color = MaterialTheme.colorScheme.onPrimaryContainer
-                                    )
-                                }
-                            }
-
-                            Row(
-                                verticalAlignment = Alignment.Bottom,
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = "Apex Browser",
-                                        style = EmphasizedTypography.headlineHero,
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
-                                    Text(
-                                        text = "Fast, private browsing with zero preloaded clutter",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    FilledTonalButton(
-                                        onClick = { onOpenExtension(ExtensionModule.NANO) },
-                                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
-                                        modifier = Modifier.testTag("hero_nano_button")
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Filled.AutoAwesome,
-                                            contentDescription = null,
-                                            modifier = Modifier.size(16.dp)
-                                        )
-                                        Spacer(Modifier.width(6.dp))
-                                        Text("Nano")
-                                    }
-                                    FilledTonalButton(
-                                        onClick = { onOpenExtension(ExtensionModule.RETRIEVER) },
-                                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
-                                        modifier = Modifier.testTag("hero_retriever_button")
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Outlined.TableChart,
-                                            contentDescription = null,
-                                            modifier = Modifier.size(16.dp)
-                                        )
-                                        Spacer(Modifier.width(6.dp))
-                                        Text("Retriever")
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Prominent Home Search Pill launching Dedicated Search Screen
+            // Focal Material 3 Search Field (Apex Browser Hero Card removed)
             item {
                 Surface(
-                    shape = MaterialTheme.shapes.extraLarge,
-                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                    tonalElevation = 4.dp,
-                    border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)),
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                    tonalElevation = 6.dp,
+                    border = BorderStroke(
+                        width = 1.dp,
+                        color = MaterialTheme.colorScheme.outlineVariant
+                    ),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(56.dp)
-                        .clip(MaterialTheme.shapes.extraLarge)
+                        .height(60.dp)
+                        .clip(CircleShape)
                         .clickable(onClick = onOpenSearchScreen)
                         .testTag("home_search_launch_pill")
                 ) {
@@ -244,18 +97,28 @@ fun StartPagePrivacyHub(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier
                             .fillMaxSize()
-                            .padding(horizontal = 18.dp)
+                            .padding(start = 10.dp, end = 14.dp)
                     ) {
-                        Icon(
-                            imageVector = Icons.Filled.Search,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(22.dp)
-                        )
-                        Spacer(modifier = Modifier.width(12.dp))
+                        Surface(
+                            shape = CircleShape,
+                            color = MaterialTheme.colorScheme.primaryContainer,
+                            modifier = Modifier.size(40.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Filled.Search,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.width(14.dp))
+
                         Text(
                             text = stringResource(
-                                R.string.search_screen_hint,
+                                R.string.home_search_placeholder,
                                 preferences.searchEngine.displayName
                             ),
                             style = MaterialTheme.typography.bodyLarge,
@@ -264,227 +127,154 @@ fun StartPagePrivacyHub(
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f)
                         )
+
+                        Spacer(modifier = Modifier.width(10.dp))
+
                         Surface(
-                            shape = MaterialTheme.shapes.small,
-                            color = MaterialTheme.colorScheme.primaryContainer
+                            shape = CircleShape,
+                            color = MaterialTheme.colorScheme.secondaryContainer
                         ) {
-                            Text(
-                                text = preferences.searchEngine.shortBadge,
-                                style = EmphasizedTypography.badgeCounter,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                            )
-                        }
-                    }
-                }
-            }
-
-            // Quick Toggles FilterChip Row
-            item {
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState())
-                        .testTag("privacy_quick_toggles")
-                ) {
-                    ExpressiveToggleChip(
-                        selected = preferences.shieldsEnabled,
-                        label = stringResource(R.string.chip_shields_up),
-                        onClick = { onToggleShields(!preferences.shieldsEnabled) },
-                        tag = "chip_toggle_shields"
-                    )
-                    ExpressiveToggleChip(
-                        selected = preferences.httpsUpgradeEnabled,
-                        label = stringResource(R.string.chip_https_only),
-                        onClick = { onToggleHttps(!preferences.httpsUpgradeEnabled) },
-                        tag = "chip_toggle_https"
-                    )
-                    ExpressiveToggleChip(
-                        selected = preferences.aggressivePreloadEnabled,
-                        label = stringResource(R.string.chip_smart_preload),
-                        onClick = { onTogglePreload(!preferences.aggressivePreloadEnabled) },
-                        tag = "chip_toggle_preload"
-                    )
-                    ExpressiveToggleChip(
-                        selected = preferences.scriptGuardEnabled,
-                        label = stringResource(R.string.chip_script_guard),
-                        onClick = { onToggleScriptGuard(!preferences.scriptGuardEnabled) },
-                        tag = "chip_toggle_scripts"
-                    )
-                }
-            }
-
-            // Privacy Dashboard Card (starts at 0 on fresh install)
-            item {
-                Card(
-                    shape = MaterialTheme.shapes.large,
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceContainer
-                    ),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .testTag("privacy_dashboard_card")
-                ) {
-                    Column(
-                        verticalArrangement = Arrangement.spacedBy(14.dp),
-                        modifier = Modifier.padding(20.dp)
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Column {
-                                Text(
-                                    text = stringResource(R.string.privacy_dashboard_title),
-                                    style = MaterialTheme.typography.titleMedium,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                                Text(
-                                    text = stringResource(R.string.privacy_dashboard_subtitle),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                            Surface(
-                                shape = MaterialTheme.shapes.medium,
-                                color = MaterialTheme.colorScheme.tertiaryContainer
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
                             ) {
                                 Text(
-                                    text = "${privacyStats.trackersBlocked}T / ${privacyStats.adsBlocked}A",
+                                    text = preferences.searchEngine.shortBadge,
                                     style = EmphasizedTypography.badgeCounter,
-                                    color = MaterialTheme.colorScheme.onTertiaryContainer,
-                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                                    color = MaterialTheme.colorScheme.onSecondaryContainer
+                                )
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                                    modifier = Modifier.size(14.dp)
                                 )
                             }
-                        }
-
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            TelemetryStatTile(
-                                value = animatedBlocked.toString(),
-                                label = stringResource(R.string.stat_trackers_blocked),
-                                containerColor = MaterialTheme.colorScheme.primaryContainer,
-                                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                                modifier = Modifier.weight(1f)
-                            )
-                            TelemetryStatTile(
-                                value = animatedHttps.toString(),
-                                label = stringResource(R.string.stat_https_upgrades),
-                                containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                                contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                                modifier = Modifier.weight(1f)
-                            )
-                        }
-
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            TelemetryStatTile(
-                                value = PrivacyManager.formatBytesSaved(privacyStats.bytesSaved),
-                                label = stringResource(R.string.stat_data_saved),
-                                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                                contentColor = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.weight(1f)
-                            )
-                            TelemetryStatTile(
-                                value = PrivacyManager.formatTimeSaved(privacyStats.timeSavedMs),
-                                label = stringResource(R.string.stat_time_saved),
-                                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                                contentColor = MaterialTheme.colorScheme.tertiary,
-                                modifier = Modifier.weight(1f)
-                            )
                         }
                     }
                 }
             }
 
-            // Genuine User Bookmarks Section (clean empty hint on fresh install)
+            // Updated Bookmarks Section Header
             item {
-                Text(
-                    text = stringResource(R.string.home_bookmarks_section),
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.padding(top = 4.dp)
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text = stringResource(R.string.home_bookmarks_section),
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        if (bookmarks.isNotEmpty()) {
+                            Surface(
+                                shape = CircleShape,
+                                color = MaterialTheme.colorScheme.primaryContainer
+                            ) {
+                                Text(
+                                    text = bookmarks.size.toString(),
+                                    style = EmphasizedTypography.badgeCounter,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    if (bookmarks.isNotEmpty()) {
+                        TextButton(
+                            onClick = onOpenBookmarksScreen,
+                            modifier = Modifier.testTag("home_manage_bookmarks_button")
+                        ) {
+                            Text(stringResource(R.string.home_bookmarks_manage))
+                        }
+                    }
+                }
             }
 
+            // Updated Bookmarks Grid / Minimal Empty State
             if (bookmarks.isEmpty()) {
                 item {
-                    Surface(
-                        shape = MaterialTheme.shapes.large,
-                        color = MaterialTheme.colorScheme.surfaceContainerLow,
+                    Card(
+                        shape = MaterialTheme.shapes.extraLarge,
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+                        ),
                         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("home_empty_bookmarks_card")
                     ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
-                            modifier = Modifier.padding(16.dp)
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 24.dp, vertical = 32.dp)
                         ) {
-                            Icon(
-                                imageVector = Icons.Outlined.Bookmarks,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(24.dp)
+                            Surface(
+                                shape = CircleShape,
+                                color = MaterialTheme.colorScheme.secondaryContainer,
+                                modifier = Modifier.size(48.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Outlined.BookmarkBorder,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                }
+                            }
+                            Text(
+                                text = stringResource(R.string.home_fresh_bookmarks_title),
+                                style = EmphasizedTypography.activeTabTitle,
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                             Text(
                                 text = stringResource(R.string.home_fresh_bookmarks_hint),
                                 style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                textAlign = TextAlign.Center
                             )
                         }
                     }
                 }
             } else {
-                items(bookmarks.take(6), key = { it.id }) { bm ->
-                    Surface(
-                        shape = MaterialTheme.shapes.medium,
-                        color = MaterialTheme.colorScheme.surfaceContainerLow,
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(MaterialTheme.shapes.medium)
-                            .clickable { onSelectDestination(bm.url) }
+                items(
+                    items = bookmarkRows,
+                    key = { pair -> pair.joinToString("_") { it.id.toString() } }
+                ) { rowItems ->
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.Bookmark,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(18.dp)
+                        HomeBookmarkShortcutTile(
+                            bookmark = rowItems[0],
+                            colorIndex = 0,
+                            onOpen = { onSelectDestination(rowItems[0].url) },
+                            onRemove = { onDeleteBookmark(rowItems[0].id) },
+                            modifier = Modifier.weight(1f)
+                        )
+
+                        if (rowItems.size > 1) {
+                            HomeBookmarkShortcutTile(
+                                bookmark = rowItems[1],
+                                colorIndex = 1,
+                                onOpen = { onSelectDestination(rowItems[1].url) },
+                                onRemove = { onDeleteBookmark(rowItems[1].id) },
+                                modifier = Modifier.weight(1f)
                             )
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = bm.title,
-                                    style = EmphasizedTypography.activeTabTitle,
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                                Text(
-                                    text = bm.url,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                            }
-                            Icon(
-                                imageVector = Icons.Filled.Public,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(16.dp)
-                            )
+                        } else {
+                            Spacer(modifier = Modifier.weight(1f))
                         }
                     }
                 }
@@ -494,323 +284,103 @@ fun StartPagePrivacyHub(
 }
 
 @Composable
-private fun ExpressiveToggleChip(
-    selected: Boolean,
-    label: String,
-    onClick: () -> Unit,
-    tag: String
-) {
-    FilterChip(
-        selected = selected,
-        onClick = onClick,
-        label = { Text(label) },
-        leadingIcon = if (selected) {
-            {
-                Icon(
-                    imageVector = Icons.Filled.Check,
-                    contentDescription = null,
-                    modifier = Modifier.size(FilterChipDefaults.IconSize)
-                )
-            }
-        } else {
-            null
-        },
-        colors = FilterChipDefaults.filterChipColors(
-            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-            selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
-            selectedLeadingIconColor = MaterialTheme.colorScheme.onPrimaryContainer
-        ),
-        modifier = Modifier.testTag(tag)
-    )
-}
-
-@Composable
-private fun TelemetryStatTile(
-    value: String,
-    label: String,
-    containerColor: androidx.compose.ui.graphics.Color,
-    contentColor: androidx.compose.ui.graphics.Color,
+private fun HomeBookmarkShortcutTile(
+    bookmark: BookmarkEntity,
+    colorIndex: Int,
+    onOpen: () -> Unit,
+    onRemove: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Surface(
-        shape = MaterialTheme.shapes.medium,
-        color = containerColor,
-        tonalElevation = 2.dp,
+    val hostLabel = remember(bookmark.url) {
+        runCatching {
+            URI(bookmark.url).host?.removePrefix("www.")?.takeIf { it.isNotBlank() }
+        }.getOrNull() ?: bookmark.url
+    }
+
+    val monogram = remember(hostLabel, bookmark.title) {
+        hostLabel.firstOrNull { it.isLetterOrDigit() }?.uppercaseChar()?.toString()
+            ?: bookmark.title.firstOrNull { it.isLetterOrDigit() }?.uppercaseChar()?.toString()
+            ?: "W"
+    }
+
+    val badgeContainer = if (colorIndex % 2 == 0) {
+        MaterialTheme.colorScheme.primaryContainer
+    } else {
+        MaterialTheme.colorScheme.tertiaryContainer
+    }
+    val badgeContent = if (colorIndex % 2 == 0) {
+        MaterialTheme.colorScheme.onPrimaryContainer
+    } else {
+        MaterialTheme.colorScheme.onTertiaryContainer
+    }
+
+    Card(
+        shape = MaterialTheme.shapes.extraLarge,
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+        ),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
         modifier = modifier
+            .height(114.dp)
+            .clip(MaterialTheme.shapes.extraLarge)
+            .clickable(onClick = onOpen)
+            .testTag("home_bookmark_tile_${bookmark.id}")
     ) {
         Column(
-            verticalArrangement = Arrangement.spacedBy(4.dp),
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp)
+            verticalArrangement = Arrangement.SpaceBetween,
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(start = 14.dp, end = 8.dp, top = 10.dp, bottom = 12.dp)
         ) {
-            Text(
-                text = value,
-                style = EmphasizedTypography.displayStat,
-                color = contentColor,
-                maxLines = 1
-            )
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelMedium,
-                color = contentColor.copy(alpha = 0.85f),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun ShieldAndPreloadModalSheet(
-    activeTab: BrowserTab,
-    privacyStats: PrivacyStatSummaryEntity,
-    preferences: BrowserPreferences,
-    preloadCandidates: List<PreloadCandidate>,
-    blockedLogs: List<BlockedDomainLogEntity>,
-    onToggleShields: (Boolean) -> Unit,
-    onToggleHttps: (Boolean) -> Unit,
-    onTogglePreload: (Boolean) -> Unit,
-    onToggleScriptGuard: (Boolean) -> Unit,
-    onNavigateCandidate: (String) -> Unit,
-    onDismiss: () -> Unit
-) {
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState,
-        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-        modifier = Modifier.testTag("shield_inspector_sheet")
-    ) {
-        LazyColumn(
-            contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 32.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            item {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "Apex Shield & Speed Engine",
-                            style = EmphasizedTypography.headlineHero,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Text(
-                            text = "${activeTab.title} • ${activeTab.blockedCountOnPage} items blocked on page",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    Surface(
-                        shape = MaterialTheme.shapes.large,
-                        color = MaterialTheme.colorScheme.primaryContainer
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.Lock,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Text(
-                                text = if (activeTab.isHttps) "HTTPS" else "HTTP",
-                                style = EmphasizedTypography.badgeCounter,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer
-                            )
-                        }
-                    }
-                }
-            }
-
-            item {
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.horizontalScroll(rememberScrollState())
-                ) {
-                    ExpressiveToggleChip(
-                        selected = preferences.shieldsEnabled,
-                        label = "Ad/Tracker Shield",
-                        onClick = { onToggleShields(!preferences.shieldsEnabled) },
-                        tag = "sheet_toggle_shields"
-                    )
-                    ExpressiveToggleChip(
-                        selected = preferences.httpsUpgradeEnabled,
-                        label = "HTTPS Upgrade",
-                        onClick = { onToggleHttps(!preferences.httpsUpgradeEnabled) },
-                        tag = "sheet_toggle_https"
-                    )
-                    ExpressiveToggleChip(
-                        selected = preferences.aggressivePreloadEnabled,
-                        label = "Preload Optimizer",
-                        onClick = { onTogglePreload(!preferences.aggressivePreloadEnabled) },
-                        tag = "sheet_toggle_preload"
-                    )
-                    ExpressiveToggleChip(
-                        selected = preferences.scriptGuardEnabled,
-                        label = "Script Blocker",
-                        onClick = { onToggleScriptGuard(!preferences.scriptGuardEnabled) },
-                        tag = "sheet_toggle_scripts"
-                    )
-                }
-            }
-
-            item {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier.fillMaxWidth()
+            ) {
                 Surface(
-                    shape = MaterialTheme.shapes.medium,
-                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                    modifier = Modifier.fillMaxWidth()
+                    shape = CircleShape,
+                    color = badgeContainer,
+                    modifier = Modifier.size(36.dp)
                 ) {
-                    Row(
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(14.dp)
-                    ) {
-                        Column {
-                            Text(
-                                text = "${privacyStats.trackersBlocked + privacyStats.adsBlocked}",
-                                style = EmphasizedTypography.headlineHero,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                            Text(
-                                text = "Total Blocked",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        Column {
-                            Text(
-                                text = PrivacyManager.formatBytesSaved(privacyStats.bytesSaved),
-                                style = EmphasizedTypography.headlineHero,
-                                color = MaterialTheme.colorScheme.secondary
-                            )
-                            Text(
-                                text = "Bandwidth Saved",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        Column {
-                            Text(
-                                text = PrivacyManager.formatTimeSaved(privacyStats.timeSavedMs),
-                                style = EmphasizedTypography.headlineHero,
-                                color = MaterialTheme.colorScheme.tertiary
-                            )
-                            Text(
-                                text = "Load Time Saved",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                }
-            }
-
-            if (preloadCandidates.isNotEmpty()) {
-                item {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Outlined.Speed,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(18.dp)
-                        )
+                    Box(contentAlignment = Alignment.Center) {
                         Text(
-                            text = "PerformanceOptimizer • Preloaded Next Links",
-                            style = MaterialTheme.typography.titleSmall,
-                            color = MaterialTheme.colorScheme.onSurface
+                            text = monogram,
+                            style = EmphasizedTypography.activeTabTitle,
+                            color = badgeContent
                         )
                     }
                 }
-                items(preloadCandidates.take(3)) { candidate ->
-                    Surface(
-                        shape = MaterialTheme.shapes.small,
-                        color = MaterialTheme.colorScheme.surfaceContainer,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                onDismiss()
-                                onNavigateCandidate(candidate.url)
-                            }
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            modifier = Modifier.padding(12.dp)
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = candidate.title,
-                                    style = MaterialTheme.typography.labelLarge,
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                                Text(
-                                    text = candidate.status,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                            Text(
-                                text = "${candidate.confidencePercent}% likely",
-                                style = EmphasizedTypography.badgeCounter,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                        }
-                    }
-                }
-            }
 
-            if (blockedLogs.isNotEmpty()) {
-                item {
-                    HorizontalDivider()
-                    Text(
-                        text = "Recent Intercepted Domains",
-                        style = MaterialTheme.typography.titleSmall,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.padding(top = 6.dp)
+                IconButton(
+                    onClick = onRemove,
+                    modifier = Modifier
+                        .size(32.dp)
+                        .testTag("home_remove_bookmark_${bookmark.id}")
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Close,
+                        contentDescription = stringResource(R.string.cd_delete_bookmark),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(16.dp)
                     )
                 }
+            }
 
-                items(blockedLogs.take(8), key = { it.id }) { log ->
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 4.dp)
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = log.blockedDomain,
-                                style = EmphasizedTypography.monoCode,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            Text(
-                                text = "on ${log.pageHost} • ${log.category}",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        Text(
-                            text = "-${PrivacyManager.formatBytesSaved(log.savedBytes)}",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.tertiary
-                        )
-                    }
-                }
+            Column(modifier = Modifier.padding(end = 6.dp)) {
+                Text(
+                    text = bookmark.title,
+                    style = EmphasizedTypography.activeTabTitle,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    text = hostLabel,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
             }
         }
     }
