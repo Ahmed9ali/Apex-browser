@@ -14,8 +14,8 @@
     <string name="nav_bookmarks">Bookmarks</string>
     <string name="nav_search">Search</string>
     <string name="nav_tabs">Tabs</string>
-    <string name="nav_extensions">AI</string>
-    <string name="cd_main_menu_more">More browser options</string>
+    <string name="nav_menu">Menu</string>
+    <string name="cd_open_menu">Open browser menu</string>
     <string name="fab_new_tab">New Tab</string>
 
     <!-- Home Page -->
@@ -27,7 +27,7 @@
 
     <!-- Dedicated Search Screen -->
     <string name="search_screen_hint">Search %1$s or enter URL</string>
-    <string name="search_suggestions_header">%1$s Suggestions</string>
+    <string name="search_suggestions_header">Suggestions</string>
     <string name="search_recent_header">Recent Searches</string>
     <string name="search_clear_history">Clear All</string>
     <string name="search_fresh_empty_title">Ready to Search</string>
@@ -80,8 +80,20 @@
     <string name="cd_close_tab">Close tab</string>
     <string name="cd_drag_tab">Drag tab to group</string>
     <string name="tab_group_drop_hint">Drop to Group</string>
+    <string name="tab_group_drop_ungroup_hint">Drop here to remove from group</string>
+    <string name="tab_group_drag_out_subtitle">Drag a tab here or outside card to ungroup</string>
     <string name="tab_group_add_tab">Add Tab to Group</string>
     <string name="tab_group_ungroup">Ungroup</string>
+    <string name="tab_group_ungroup_all">Ungroup All</string>
+    <string name="tab_group_edit_title">Rename &amp; Group Color</string>
+    <string name="tab_group_name_label">Group name</string>
+    <string name="tab_group_name_placeholder">Enter group name</string>
+    <string name="tab_group_color_label">Group &amp; tab color</string>
+    <string name="action_save">Save</string>
+    <string name="action_cancel">Cancel</string>
+    <string name="cd_edit_group">Rename and choose group color</string>
+    <string name="cd_cycle_tab_color">Change tab color</string>
+    <string name="cd_add_tab_in_group">New tab in group</string>
 
     <!-- Automation Extensions -->
     <string name="automation_panel_title">Apex Extensions</string>
@@ -94,10 +106,62 @@
     <string name="retriever_rule_hint">Extraction prompt or CSS selector (e.g., product names and prices)</string>
     <string name="retriever_save_rule">Save Rule</string>
 
-    <!-- Menu -->
+    <!-- Hamburger Menu Bottom Sheet -->
+    <string name="menu_sheet_title">Browser Menu</string>
+    <string name="menu_quick_actions_section">Quick Actions</string>
+    <string name="menu_preferences_section">Preferences &amp; Privacy</string>
     <string name="menu_settings">Settings</string>
+    <string name="menu_settings_subtitle">Search engine, privacy shields &amp; theme</string>
     <string name="menu_new_tab">New Tab</string>
+    <string name="menu_new_tab_subtitle">Open a fresh Home tab</string>
     <string name="menu_open_bookmarks">Bookmarks</string>
+    <string name="menu_bookmarks_subtitle">View and manage your saved pages</string>
+    <string name="menu_reload_page">Reload Page</string>
+    <string name="menu_reload_subtitle">Refresh the active web page</string>
     <string name="menu_desktop_mode">Desktop Viewport</string>
+    <string name="menu_desktop_subtitle">Request full desktop websites</string>
     <string name="menu_clear_data">Clear Browsing Data</string>
+    <string name="menu_clear_data_subtitle">Clear search history and reset counters</string>
+    <string name="menu_save_offline">Save for Offline</string>
+    <string name="menu_save_offline_subtitle">Download current page to local storage</string>
+    <string name="menu_offline_pages">Offline Pages</string>
+    <string name="menu_offline_pages_subtitle">View saved pages without internet</string>
+
+    <!-- Offline Pages Screen -->
+    <string name="offline_pages_title">Offline Pages</string>
+    <string name="offline_pages_empty_title">No Offline Pages Stored</string>
+    <string name="offline_pages_empty_subtitle">Pages you visit or save for offline reading will be stored locally on your device.</string>
+    <string name="offline_pages_search_hint">Search offline pages…</string>
+    <string name="offline_pages_delete_cd">Delete offline copy</string>
+    <string name="offline_pages_clear_all">Clear All</string>
+    <string name="offline_banner_viewing">Offline Mode</string>
+    <string name="offline_banner_saved_on">Saved copy from %1$s</string>
+    <string name="offline_banner_try_online">Go Online</string>
+    <string name="settings_offline_cache_title">Auto-Save Visited Pages Offline</string>
+    <string name="settings_offline_cache_desc">Automatically cache visited web content for offline viewing</string>
+    <string name="settings_clear_offline_pages">Clear Offline Pages</string>
+    <string name="clear_offline_pages">Clear Offline Pages</string>
+    <string name="clear_offline_pages_confirm_message">Are you sure you want to delete all saved offline pages? This cannot be undone.</string>
+    <string name="clear_offline_pages_confirm_button">Delete All</string>
+    <string name="cd_delete_offline_page">Delete offline page copy</string>
+    <string name="cancel">Cancel</string>
+    <string name="remove">Remove</string>
+
+    <!-- Top Visits / Shortcuts -->
+    <string name="home_search_placeholder_clean">Search or type URL</string>
+    <string name="home_top_visits_title">Top Visits</string>
+    <string name="home_add_top_visit">Add</string>
+    <string name="dialog_add_top_visit_title">Add Shortcut</string>
+    <string name="dialog_top_visit_name_label">Name</string>
+    <string name="dialog_top_visit_name_hint">e.g. YouTube</string>
+    <string name="dialog_top_visit_url_label">URL</string>
+    <string name="dialog_top_visit_url_hint">e.g. https://youtube.com</string>
+    <string name="dialog_add_button">Add</string>
+    <string name="cd_remove_top_visit">Remove shortcut</string>
+    <string name="action_share">Share</string>
+    <string name="action_copy">Copy</string>
+    <string name="action_edit">Edit</string>
+    <string name="clipboard_copied_link_title">Link you copied</string>
+    <string name="clipboard_copied_text_title">Text you copied</string>
+    <string name="notice_link_copied">Link copied to clipboard</string>
 </resources>

@@ -17,23 +17,27 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.outlined.BookmarkBorder
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
+import androidx.compose.material.icons.outlined.CloudDone
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -43,7 +47,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.R
-import com.example.data.local.BookmarkEntity
+import com.example.data.local.TopVisitEntity
 import com.example.data.preferences.BrowserPreferences
 import com.example.ui.theme.EmphasizedTypography
 import java.net.URI
@@ -51,16 +55,19 @@ import java.net.URI
 @Composable
 fun StartPageHome(
     preferences: BrowserPreferences,
-    bookmarks: List<BookmarkEntity>,
+    topVisits: List<TopVisitEntity>,
     onOpenSearchScreen: () -> Unit,
     onSelectDestination: (String) -> Unit,
-    onDeleteBookmark: (Long) -> Unit,
-    onOpenBookmarksScreen: () -> Unit,
+    onAddTopVisit: (String, String) -> Unit,
+    onDeleteTopVisit: (Long) -> Unit,
+    offlinePagesCount: Int = 0,
+    onOpenOfflinePagesScreen: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    val bookmarkRows = remember(bookmarks) {
-        bookmarks.take(12).chunked(2)
-    }
+    var showAddDialog by remember { mutableStateOf(false) }
+    var visitPendingDelete by remember { mutableStateOf<TopVisitEntity?>(null) }
+
+    val curvedSearchShape = RoundedCornerShape(16.dp)
 
     Box(
         contentAlignment = Alignment.TopCenter,
@@ -70,318 +77,348 @@ fun StartPageHome(
             .testTag("start_page_hub")
     ) {
         LazyColumn(
-            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 28.dp, bottom = 104.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+            contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 24.dp, bottom = 100.dp),
+            verticalArrangement = Arrangement.spacedBy(24.dp),
             modifier = Modifier
                 .fillMaxWidth()
                 .widthIn(max = 760.dp)
         ) {
-            // Focal Material 3 Search Field (Apex Browser Hero Card removed)
+            // Recent Top Visits Horizontal Row with + Add Button on the right
             item {
-                Surface(
-                    shape = CircleShape,
-                    color = MaterialTheme.colorScheme.surfaceContainerHighest,
-                    tonalElevation = 6.dp,
-                    border = BorderStroke(
-                        width = 1.dp,
-                        color = MaterialTheme.colorScheme.outlineVariant
-                    ),
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(60.dp)
-                        .clip(CircleShape)
-                        .clickable(onClick = onOpenSearchScreen)
-                        .testTag("home_search_launch_pill")
+                        .testTag("home_top_visits_section")
                 ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(start = 10.dp, end = 14.dp)
-                    ) {
-                        Surface(
-                            shape = CircleShape,
-                            color = MaterialTheme.colorScheme.primaryContainer,
-                            modifier = Modifier.size(40.dp)
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(
-                                    imageVector = Icons.Filled.Search,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.width(14.dp))
-
-                        Text(
-                            text = stringResource(
-                                R.string.home_search_placeholder,
-                                preferences.searchEngine.displayName
-                            ),
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f)
-                        )
-
-                        Spacer(modifier = Modifier.width(10.dp))
-
-                        Surface(
-                            shape = CircleShape,
-                            color = MaterialTheme.colorScheme.secondaryContainer
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
-                            ) {
-                                Text(
-                                    text = preferences.searchEngine.shortBadge,
-                                    style = EmphasizedTypography.badgeCounter,
-                                    color = MaterialTheme.colorScheme.onSecondaryContainer
-                                )
-                                Icon(
-                                    imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.onSecondaryContainer,
-                                    modifier = Modifier.size(14.dp)
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Updated Bookmarks Section Header
-            item {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 8.dp)
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        modifier = Modifier.fillMaxWidth()
                     ) {
                         Text(
-                            text = stringResource(R.string.home_bookmarks_section),
+                            text = stringResource(R.string.home_top_visits_title),
                             style = MaterialTheme.typography.titleMedium,
                             color = MaterialTheme.colorScheme.onSurface
                         )
-                        if (bookmarks.isNotEmpty()) {
-                            Surface(
-                                shape = CircleShape,
-                                color = MaterialTheme.colorScheme.primaryContainer
-                            ) {
-                                Text(
-                                    text = bookmarks.size.toString(),
-                                    style = EmphasizedTypography.badgeCounter,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
-                                )
-                            }
-                        }
                     }
 
-                    if (bookmarks.isNotEmpty()) {
-                        TextButton(
-                            onClick = onOpenBookmarksScreen,
-                            modifier = Modifier.testTag("home_manage_bookmarks_button")
-                        ) {
-                            Text(stringResource(R.string.home_bookmarks_manage))
+                    LazyRow(
+                        contentPadding = PaddingValues(horizontal = 2.dp, vertical = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(16.dp),
+                        verticalAlignment = Alignment.Top,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("home_top_visits_row")
+                    ) {
+                        // Top visits shortcuts first
+                        items(
+                            items = topVisits,
+                            key = { it.id }
+                        ) { visit ->
+                            TopVisitTile(
+                                topVisit = visit,
+                                onClick = { onSelectDestination(visit.url) },
+                                onDelete = { visitPendingDelete = visit }
+                            )
+                        }
+
+                        // Add button tile placed at the right side
+                        item(key = "add_shortcut_tile") {
+                            AddTopVisitTile(onClick = { showAddDialog = true })
                         }
                     }
                 }
             }
 
-            // Updated Bookmarks Grid / Minimal Empty State
-            if (bookmarks.isEmpty()) {
+            // Quick Offline Pages Shortcut (if user has saved pages)
+            if (offlinePagesCount > 0) {
                 item {
-                    Card(
-                        shape = MaterialTheme.shapes.extraLarge,
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
-                        ),
+                    Surface(
+                        shape = RoundedCornerShape(16.dp),
+                        color = MaterialTheme.colorScheme.surfaceContainerLow,
                         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .testTag("home_empty_bookmarks_card")
+                            .clip(RoundedCornerShape(16.dp))
+                            .clickable(onClick = onOpenOfflinePagesScreen)
+                            .testTag("home_offline_pages_shortcut")
                     ) {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 24.dp, vertical = 32.dp)
+                                .padding(horizontal = 16.dp, vertical = 12.dp)
                         ) {
                             Surface(
                                 shape = CircleShape,
-                                color = MaterialTheme.colorScheme.secondaryContainer,
-                                modifier = Modifier.size(48.dp)
+                                color = MaterialTheme.colorScheme.primaryContainer,
+                                modifier = Modifier.size(36.dp)
                             ) {
                                 Box(contentAlignment = Alignment.Center) {
                                     Icon(
-                                        imageVector = Icons.Outlined.BookmarkBorder,
+                                        imageVector = Icons.Outlined.CloudDone,
                                         contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.onSecondaryContainer,
-                                        modifier = Modifier.size(24.dp)
+                                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                        modifier = Modifier.size(18.dp)
                                     )
                                 }
                             }
-                            Text(
-                                text = stringResource(R.string.home_fresh_bookmarks_title),
-                                style = EmphasizedTypography.activeTabTitle,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            Text(
-                                text = stringResource(R.string.home_fresh_bookmarks_hint),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                textAlign = TextAlign.Center
-                            )
-                        }
-                    }
-                }
-            } else {
-                items(
-                    items = bookmarkRows,
-                    key = { pair -> pair.joinToString("_") { it.id.toString() } }
-                ) { rowItems ->
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        HomeBookmarkShortcutTile(
-                            bookmark = rowItems[0],
-                            colorIndex = 0,
-                            onOpen = { onSelectDestination(rowItems[0].url) },
-                            onRemove = { onDeleteBookmark(rowItems[0].id) },
-                            modifier = Modifier.weight(1f)
-                        )
-
-                        if (rowItems.size > 1) {
-                            HomeBookmarkShortcutTile(
-                                bookmark = rowItems[1],
-                                colorIndex = 1,
-                                onOpen = { onSelectDestination(rowItems[1].url) },
-                                onRemove = { onDeleteBookmark(rowItems[1].id) },
-                                modifier = Modifier.weight(1f)
-                            )
-                        } else {
-                            Spacer(modifier = Modifier.weight(1f))
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = stringResource(R.string.menu_offline_pages),
+                                    style = EmphasizedTypography.activeTabTitle,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    text = "$offlinePagesCount saved ${if (offlinePagesCount == 1) "page" else "pages"} available offline",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            TextButton(onClick = onOpenOfflinePagesScreen) {
+                                Text(stringResource(R.string.home_bookmarks_manage))
+                            }
                         }
                     }
                 }
             }
         }
+    }
+
+    // Add Shortcut Dialog
+    if (showAddDialog) {
+        AddTopVisitDialog(
+            onDismiss = { showAddDialog = false },
+            onConfirm = { name, url ->
+                onAddTopVisit(name, url)
+                showAddDialog = false
+            }
+        )
+    }
+
+    // Delete Shortcut Confirmation Dialog
+    visitPendingDelete?.let { visit ->
+        AlertDialog(
+            onDismissRequest = { visitPendingDelete = null },
+            title = { Text(stringResource(R.string.cd_remove_top_visit)) },
+            text = { Text("Remove \"${visit.title}\" from your top visits?") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        onDeleteTopVisit(visit.id)
+                        visitPendingDelete = null
+                    }
+                ) {
+                    Text(stringResource(R.string.remove))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { visitPendingDelete = null }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            }
+        )
     }
 }
 
 @Composable
-private fun HomeBookmarkShortcutTile(
-    bookmark: BookmarkEntity,
-    colorIndex: Int,
-    onOpen: () -> Unit,
-    onRemove: () -> Unit,
+private fun AddTopVisitTile(
+    onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val hostLabel = remember(bookmark.url) {
-        runCatching {
-            URI(bookmark.url).host?.removePrefix("www.")?.takeIf { it.isNotBlank() }
-        }.getOrNull() ?: bookmark.url
-    }
+    val tileShape = RoundedCornerShape(16.dp)
 
-    val monogram = remember(hostLabel, bookmark.title) {
-        hostLabel.firstOrNull { it.isLetterOrDigit() }?.uppercaseChar()?.toString()
-            ?: bookmark.title.firstOrNull { it.isLetterOrDigit() }?.uppercaseChar()?.toString()
-            ?: "W"
-    }
-
-    val badgeContainer = if (colorIndex % 2 == 0) {
-        MaterialTheme.colorScheme.primaryContainer
-    } else {
-        MaterialTheme.colorScheme.tertiaryContainer
-    }
-    val badgeContent = if (colorIndex % 2 == 0) {
-        MaterialTheme.colorScheme.onPrimaryContainer
-    } else {
-        MaterialTheme.colorScheme.onTertiaryContainer
-    }
-
-    Card(
-        shape = MaterialTheme.shapes.extraLarge,
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
-        ),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(6.dp),
         modifier = modifier
-            .height(114.dp)
-            .clip(MaterialTheme.shapes.extraLarge)
-            .clickable(onClick = onOpen)
-            .testTag("home_bookmark_tile_${bookmark.id}")
+            .width(68.dp)
+            .testTag("home_add_top_visit_tile")
     ) {
-        Column(
-            verticalArrangement = Arrangement.SpaceBetween,
+        Surface(
+            shape = tileShape,
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
             modifier = Modifier
-                .fillMaxSize()
-                .padding(start = 14.dp, end = 8.dp, top = 10.dp, bottom = 12.dp)
+                .size(56.dp)
+                .clip(tileShape)
+                .clickable(onClick = onClick)
+                .testTag("home_add_top_visit_button")
         ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Surface(
-                    shape = CircleShape,
-                    color = badgeContainer,
-                    modifier = Modifier.size(36.dp)
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Text(
-                            text = monogram,
-                            style = EmphasizedTypography.activeTabTitle,
-                            color = badgeContent
-                        )
-                    }
-                }
-
-                IconButton(
-                    onClick = onRemove,
-                    modifier = Modifier
-                        .size(32.dp)
-                        .testTag("home_remove_bookmark_${bookmark.id}")
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.Close,
-                        contentDescription = stringResource(R.string.cd_delete_bookmark),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(16.dp)
-                    )
-                }
-            }
-
-            Column(modifier = Modifier.padding(end = 6.dp)) {
-                Text(
-                    text = bookmark.title,
-                    style = EmphasizedTypography.activeTabTitle,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Text(
-                    text = hostLabel,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+            Box(contentAlignment = Alignment.Center) {
+                Icon(
+                    imageVector = Icons.Filled.Add,
+                    contentDescription = stringResource(R.string.home_add_top_visit),
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(24.dp)
                 )
             }
         }
+
+        Text(
+            text = stringResource(R.string.home_add_top_visit),
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
     }
+}
+
+@Composable
+private fun TopVisitTile(
+    topVisit: TopVisitEntity,
+    onClick: () -> Unit,
+    onDelete: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val tileShape = RoundedCornerShape(16.dp)
+
+    val hostLabel = remember(topVisit.url) {
+        runCatching {
+            URI(topVisit.url).host?.removePrefix("www.")?.takeIf { it.isNotBlank() }
+        }.getOrNull() ?: topVisit.url
+    }
+
+    val monogram = remember(hostLabel, topVisit.title) {
+        topVisit.title.firstOrNull { it.isLetterOrDigit() }?.uppercaseChar()?.toString()
+            ?: hostLabel.firstOrNull { it.isLetterOrDigit() }?.uppercaseChar()?.toString()
+            ?: "W"
+    }
+
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+        modifier = modifier
+            .width(68.dp)
+            .testTag("home_top_visit_tile_${topVisit.id}")
+    ) {
+        Box(contentAlignment = Alignment.TopEnd) {
+            Surface(
+                shape = tileShape,
+                color = MaterialTheme.colorScheme.surfaceContainerLow,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                modifier = Modifier
+                    .size(56.dp)
+                    .clip(tileShape)
+                    .clickable(onClick = onClick)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Surface(
+                        shape = CircleShape,
+                        color = MaterialTheme.colorScheme.primaryContainer,
+                        modifier = Modifier.size(36.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Text(
+                                text = monogram,
+                                style = EmphasizedTypography.activeTabTitle,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Quick delete trigger button
+            Surface(
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.outlineVariant),
+                modifier = Modifier
+                    .size(20.dp)
+                    .clip(CircleShape)
+                    .clickable(onClick = onDelete)
+                    .testTag("home_remove_top_visit_${topVisit.id}")
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = Icons.Filled.Close,
+                        contentDescription = stringResource(R.string.cd_remove_top_visit),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(12.dp)
+                    )
+                }
+            }
+        }
+
+        Text(
+            text = topVisit.title,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurface,
+            textAlign = TextAlign.Center,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
+@Composable
+private fun AddTopVisitDialog(
+    onDismiss: () -> Unit,
+    onConfirm: (String, String) -> Unit
+) {
+    var title by remember { mutableStateOf("") }
+    var url by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.dialog_add_top_visit_title)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                OutlinedTextField(
+                    value = title,
+                    onValueChange = { title = it },
+                    label = { Text(stringResource(R.string.dialog_top_visit_name_label)) },
+                    placeholder = { Text(stringResource(R.string.dialog_top_visit_name_hint)) },
+                    singleLine = true,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("dialog_top_visit_name_input")
+                )
+
+                OutlinedTextField(
+                    value = url,
+                    onValueChange = { url = it },
+                    label = { Text(stringResource(R.string.dialog_top_visit_url_label)) },
+                    placeholder = { Text(stringResource(R.string.dialog_top_visit_url_hint)) },
+                    singleLine = true,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("dialog_top_visit_url_input")
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    val trimmedUrl = url.trim()
+                    val cleanUrl = if (!trimmedUrl.startsWith("http://") && !trimmedUrl.startsWith("https://")) {
+                        "https://$trimmedUrl"
+                    } else {
+                        trimmedUrl
+                    }
+                    val cleanTitle = title.trim().ifEmpty {
+                        runCatching { URI(cleanUrl).host?.removePrefix("www.") }.getOrNull() ?: cleanUrl
+                    }
+                    onConfirm(cleanTitle, cleanUrl)
+                },
+                enabled = url.isNotBlank(),
+                modifier = Modifier.testTag("dialog_top_visit_confirm_button")
+            ) {
+                Text(stringResource(R.string.dialog_add_button))
+            }
+        },
+        dismissButton = {
+            TextButton(
+                onClick = onDismiss,
+                modifier = Modifier.testTag("dialog_top_visit_cancel_button")
+            ) {
+                Text(stringResource(R.string.cancel))
+            }
+        }
+    )
 }

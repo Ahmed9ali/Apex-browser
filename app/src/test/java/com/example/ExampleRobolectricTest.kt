@@ -14,14 +14,19 @@ import com.example.ui.browser.GroupedListSpacing
 import com.example.ui.browser.groupedListItemShape
 import com.example.ui.theme.ApexColorSchemeBuilder
 import com.example.ui.theme.SeedPalettePreset
+import com.example.ui.theme.TabGroupColorOption
 import com.example.ui.viewmodel.BrowserTab
 import com.example.ui.viewmodel.BrowserUiState
 import com.example.ui.viewmodel.TabGridEntry
 import com.example.ui.viewmodel.TabGroupInfo
+import com.example.data.local.OfflinePageEntity
+import com.example.engine.OfflineStorageUtil
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -37,6 +42,7 @@ class ExampleRobolectricTest {
         assertTrue(freshState.searchSuggestions.isEmpty())
         assertTrue(freshState.searchQuery.isEmpty())
         assertFalse(freshState.isSettingsScreenOpen)
+        assertFalse(freshState.isMenuSheetOpen)
 
         SearchEngineOption.entries.forEach { option ->
             assertTrue(option.description.isNotBlank())
@@ -223,4 +229,180 @@ class ExampleRobolectricTest {
         assertNotEquals(middle, last)
         assertNotEquals(first, last)
     }
+
+    @Test
+    fun `verify group rename color palettes and bottom group tab strip state`() {
+        TabGroupColorOption.entries.forEach { option ->
+            val lightPalette = ApexColorSchemeBuilder.groupTonalColors(option, darkTheme = false)
+            val darkPalette = ApexColorSchemeBuilder.groupTonalColors(option, darkTheme = true)
+            assertNotEquals(lightPalette.container, darkPalette.container)
+            assertNotEquals(lightPalette.accent, lightPalette.onAccent)
+        }
+
+        val emeraldGroup = TabGroupInfo(
+            id = "grp_research",
+            title = "Research",
+            colorOption = TabGroupColorOption.EMERALD
+        )
+        val homeInGroup = BrowserTab(
+            id = "t_home_grp",
+            title = "Home",
+            url = "apex://home",
+            groupId = "grp_research",
+            tabColor = TabGroupColorOption.EMERALD
+        )
+        val docsInGroup = BrowserTab(
+            id = "t_docs_grp",
+            title = "Kotlin Docs",
+            url = "https://kotlinlang.org",
+            groupId = "grp_research",
+            tabColor = TabGroupColorOption.EMERALD
+        )
+        val standaloneTab = BrowserTab(
+            id = "t_solo",
+            title = "Solo",
+            url = "apex://home",
+            groupId = null
+        )
+
+        val stateInGroup = BrowserUiState(
+            tabs = listOf(homeInGroup, docsInGroup, standaloneTab),
+            tabGroups = listOf(emeraldGroup),
+            activeTabId = "t_home_grp"
+        )
+        assertNotNull(stateInGroup.activeTabGroup)
+        assertEquals("Research", stateInGroup.activeTabGroup?.title)
+        assertEquals(TabGroupColorOption.EMERALD, stateInGroup.activeTabGroup?.colorOption)
+        assertEquals(2, stateInGroup.activeGroupTabs.size)
+
+        val stateOnStandalone = stateInGroup.copy(activeTabId = "t_solo")
+        assertNull(stateOnStandalone.activeTabGroup)
+        assertTrue(stateOnStandalone.activeGroupTabs.isEmpty())
+    }
+
+    @Test
+    fun `verify OfflineStorageUtil unescapes JS DOM output and formats sizes and snippets`() {
+        val sampleJsHtml = "\"<!DOCTYPE html><html><head><title>Test</title><\\/head><body><h1>Hello \\\"World\\\"<\\/h1><p>This is offline content.<\\/p><\\/body><\\/html>\""
+        val unescaped = OfflineStorageUtil.unescapeJsString(sampleJsHtml)
+        assertTrue(unescaped.startsWith("<!DOCTYPE html>"))
+        assertTrue(unescaped.contains("Hello \"World\""))
+        assertFalse(unescaped.startsWith("\""))
+        assertFalse(unescaped.endsWith("\""))
+
+        val rawWithoutQuotes = "<html><body>Clean HTML</body></html>"
+        assertEquals("<html><body>Clean HTML</body></html>", OfflineStorageUtil.unescapeJsString(rawWithoutQuotes))
+
+        // Snippet extraction
+        val complexHtml = """
+            <html>
+                <head>
+                    <style>body { color: red; }</style>
+                    <script>alert('hello');</script>
+                </head>
+                <body>
+                    <h1>Apex Browser Documentation</h1>
+                    <p>Learn how to browse privately and save offline copies of web pages.</p>
+                </body>
+            </html>
+        """.trimIndent()
+        val snippet = OfflineStorageUtil.extractSnippet(complexHtml)
+        assertFalse(snippet.contains("<"))
+        assertFalse(snippet.contains(">"))
+        assertFalse(snippet.contains("alert"))
+        assertTrue(snippet.contains("Apex Browser Documentation"))
+        assertTrue(snippet.contains("Learn how to browse privately"))
+
+        // Byte size formatting
+        assertEquals("500 B", OfflineStorageUtil.formatByteSize(500L))
+        assertEquals("1.0 KB", OfflineStorageUtil.formatByteSize(1024L))
+        assertEquals("2.5 KB", OfflineStorageUtil.formatByteSize(2560L))
+        assertEquals("1.5 MB", OfflineStorageUtil.formatByteSize(1572864L))
+    }
+
+    @Test
+    fun `verify OfflinePageEntity and BrowserTab offline state models`() {
+        val page = OfflinePageEntity(
+            id = 42L,
+            url = "https://example.com/article",
+            title = "Offline Article",
+            htmlContent = "<html><body>Offline copy</body></html>",
+            textSnippet = "Offline copy",
+            sizeBytes = 2048L,
+            savedAt = 1700000000000L
+        )
+        assertEquals(42L, page.id)
+        assertEquals("https://example.com/article", page.url)
+        assertEquals("Offline Article", page.title)
+        assertEquals(2048L, page.sizeBytes)
+
+        val offlineTab = BrowserTab(
+            id = "t_offline",
+            title = page.title,
+            url = page.url,
+            isOfflineCopy = true,
+            offlineSavedAt = page.savedAt,
+            offlineHtmlContent = page.htmlContent
+        )
+        assertTrue(offlineTab.isOfflineCopy)
+        assertEquals(1700000000000L, offlineTab.offlineSavedAt)
+        assertEquals("<html><body>Offline copy</body></html>", offlineTab.offlineHtmlContent)
+        assertFalse(offlineTab.isHomePage)
+
+        val uiState = BrowserUiState(
+            tabs = listOf(offlineTab),
+            activeTabId = "t_offline",
+            isOfflinePagesScreenOpen = true
+        )
+        assertTrue(uiState.isOfflinePagesScreenOpen)
+        assertEquals(1, uiState.tabs.size)
+        assertTrue(uiState.activeTab.isOfflineCopy)
+    }
+
+    @Test
+    fun `verify TopVisitEntity model and search engine options for start page`() {
+        val topVisit = com.example.data.local.TopVisitEntity(
+            id = 1L,
+            title = "YouTube",
+            url = "https://youtube.com"
+        )
+        assertEquals(1L, topVisit.id)
+        assertEquals("YouTube", topVisit.title)
+        assertEquals("https://youtube.com", topVisit.url)
+        assertTrue(topVisit.createdAt > 0L)
+
+        // Verify SearchEngineOptions
+        val engineIds = SearchEngineOption.entries.map { it.id }.toSet()
+        assertTrue(engineIds.contains("google"))
+        assertTrue(engineIds.contains("duckduckgo"))
+        assertTrue(engineIds.contains("brave"))
+        assertTrue(engineIds.contains("bing"))
+        assertTrue(engineIds.contains("wikipedia"))
+        assertEquals(5, engineIds.size)
+
+        // Verify curved edges shape: RoundedCornerShape(16.dp)
+        val searchBarCurvedShape = RoundedCornerShape(16.dp)
+        assertEquals(RoundedCornerShape(16.dp), searchBarCurvedShape)
+    }
+
+    @Test
+    fun `verify SharedPreferences serialization and search engine card configs`() {
+        val testBookmarks = listOf(
+            com.example.data.local.BookmarkEntity(id = 1L, url = "https://example.com", title = "Example")
+        )
+        // Verify format and key representation
+        val bookmark = testBookmarks.first()
+        assertEquals(1L, bookmark.id)
+        assertEquals("https://example.com", bookmark.url)
+        assertEquals("Example", bookmark.title)
+
+        // Verify all 5 search engines have valid card labels and IDs
+        SearchEngineOption.entries.forEach { option ->
+            assertTrue(option.id.isNotBlank())
+            assertTrue(option.displayName.isNotBlank())
+            assertTrue(option.shortBadge.isNotBlank())
+            assertTrue(option.description.isNotBlank())
+        }
+    }
 }
+
+

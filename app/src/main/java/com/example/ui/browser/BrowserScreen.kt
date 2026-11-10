@@ -3,11 +3,12 @@ package com.example.ui.browser
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -16,9 +17,10 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.outlined.CloudDone
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -27,6 +29,9 @@ import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.windowsizeclass.WindowSizeClass
 import androidx.compose.material3.windowsizeclass.WindowWidthSizeClass
 import androidx.compose.runtime.Composable
@@ -37,13 +42,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.R
+import com.example.engine.OfflineStorageUtil
 import com.example.ui.theme.ApexMotion
 import com.example.ui.theme.LocalReducedMotion
 import com.example.ui.viewmodel.BrowserViewModel
-import com.example.ui.viewmodel.ExtensionModule
 
 @Composable
 fun BrowserScreen(
@@ -53,16 +59,17 @@ fun BrowserScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val preferences by viewModel.preferencesState.collectAsStateWithLifecycle()
-    val extractionRules by viewModel.extractionRulesState.collectAsStateWithLifecycle()
     val bookmarks by viewModel.bookmarksState.collectAsStateWithLifecycle()
     val searchHistory by viewModel.searchHistoryState.collectAsStateWithLifecycle()
+    val offlinePages by viewModel.offlinePagesState.collectAsStateWithLifecycle()
+    val offlinePagesCount by viewModel.offlinePagesCountState.collectAsStateWithLifecycle()
+    val topVisits by viewModel.topVisitsState.collectAsStateWithLifecycle()
 
     val reducedMotion = LocalReducedMotion.current
     val snackbarHostState = remember { SnackbarHostState() }
     val viewBookmarksLabel = stringResource(R.string.action_view_bookmarks)
 
     val isWideScreen = windowSizeClass.widthSizeClass != WindowWidthSizeClass.Compact
-    val isExpandedScreen = windowSizeClass.widthSizeClass == WindowWidthSizeClass.Expanded
 
     val activeTab = uiState.activeTab
     val canNavigateBack = !activeTab.isHomePage || activeTab.canGoBack
@@ -88,9 +95,10 @@ fun BrowserScreen(
         enabled = canNavigateBack &&
             !uiState.isTabSwitcherOpen &&
             !uiState.isBookmarksScreenOpen &&
+            !uiState.isOfflinePagesScreenOpen &&
             !uiState.isSettingsScreenOpen &&
             !uiState.isSearchScreenOpen &&
-            !uiState.isAutomationOpen
+            !uiState.isMenuSheetOpen
     ) {
         viewModel.navigateBack()
     }
@@ -102,6 +110,7 @@ fun BrowserScreen(
             if (!uiState.isSearchScreenOpen &&
                 !uiState.isSettingsScreenOpen &&
                 !uiState.isBookmarksScreenOpen &&
+                !uiState.isOfflinePagesScreenOpen &&
                 !uiState.isTabSwitcherOpen
             ) {
                 Column(modifier = Modifier.fillMaxWidth()) {
@@ -112,11 +121,53 @@ fun BrowserScreen(
                             viewModel.openSearchScreen(prefillCurrentUrl = !activeTab.isHomePage)
                         },
                         onReloadClick = viewModel::reloadActiveTab,
-                        onOpenSettingsClick = { viewModel.setSettingsScreenOpen(true) },
-                        onOpenAutomationClick = {
-                            viewModel.setAutomationOpen(true, ExtensionModule.NANO)
-                        }
+                        searchEngine = preferences.searchEngine
                     )
+
+                    if (activeTab.isOfflineCopy) {
+                        Surface(
+                            color = MaterialTheme.colorScheme.tertiaryContainer,
+                            contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("offline_copy_banner")
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 6.dp)
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Outlined.CloudDone,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Text(
+                                        text = "Offline Mode • Saved ${OfflineStorageUtil.formatSavedTimestamp(activeTab.offlineSavedAt ?: 0L)}",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                                TextButton(
+                                    onClick = { viewModel.reloadOnline(activeTab.id) },
+                                    modifier = Modifier.testTag("offline_banner_reload_online")
+                                ) {
+                                    Text(
+                                        text = stringResource(R.string.offline_banner_try_online),
+                                        style = MaterialTheme.typography.labelMedium
+                                    )
+                                }
+                            }
+                        }
+                    }
 
                     if (isWideScreen) {
                         ExpressiveHorizontalTabStrip(
@@ -136,7 +187,7 @@ fun BrowserScreen(
                 !uiState.isBookmarksScreenOpen &&
                 !uiState.isSettingsScreenOpen &&
                 !uiState.isSearchScreenOpen &&
-                !uiState.isAutomationOpen
+                !uiState.isMenuSheetOpen
             ) {
                 FloatingActionButton(
                     onClick = { viewModel.createNewTab() },
@@ -152,37 +203,77 @@ fun BrowserScreen(
             }
         },
         bottomBar = {
-            if (!uiState.isTabSwitcherOpen) {
-                BraveBottomNavigationBar(
-                    isHomeActive = activeTab.isHomePage,
-                    isBookmarksScreenOpen = uiState.isBookmarksScreenOpen,
-                    isSettingsScreenOpen = uiState.isSettingsScreenOpen,
-                    isCurrentWebPageBookmarked = isCurrentWebPageBookmarked,
-                    isTabSwitcherOpen = uiState.isTabSwitcherOpen,
-                    isSearchScreenOpen = uiState.isSearchScreenOpen,
-                    openTabCount = uiState.tabs.size,
-                    desktopViewportEnabled = preferences.desktopViewportEnabled,
-                    onHomeClick = viewModel::onBottomHomePressed,
-                    onBookmarksClick = viewModel::onBottomBookmarksPressed,
-                    onSearchClick = {
-                        if (uiState.isSearchScreenOpen) {
-                            viewModel.closeSearchScreen()
+            if (!uiState.isTabSwitcherOpen &&
+                !uiState.isSearchScreenOpen &&
+                !uiState.isSettingsScreenOpen &&
+                !uiState.isBookmarksScreenOpen &&
+                !uiState.isOfflinePagesScreenOpen
+            ) {
+                val activeGroup = uiState.activeTabGroup
+                val showGroupStrip = activeGroup != null
+
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    AnimatedVisibility(
+                        visible = showGroupStrip,
+                        enter = if (reducedMotion) {
+                            fadeIn()
                         } else {
-                            viewModel.openSearchScreen(prefillCurrentUrl = false)
+                            expandVertically(animationSpec = ApexMotion.spatialSpring()) +
+                                fadeIn(animationSpec = ApexMotion.effectsSpring())
+                        },
+                        exit = if (reducedMotion) {
+                            fadeOut()
+                        } else {
+                            shrinkVertically(animationSpec = ApexMotion.spatialSpring()) +
+                                fadeOut(animationSpec = ApexMotion.effectsSpring())
                         }
-                    },
-                    onTabsClick = { viewModel.setTabSwitcherOpen(!uiState.isTabSwitcherOpen) },
-                    onOpenAutomation = { module -> viewModel.setAutomationOpen(true, module) },
-                    onOpenSettings = { viewModel.setSettingsScreenOpen(true) },
-                    onNewTabClick = { viewModel.createNewTab() },
-                    onOpenBookmarksScreenExplicit = { viewModel.setBookmarksScreenOpen(true) },
-                    onToggleDesktopMode = viewModel::toggleDesktopViewport,
-                    onResetStats = viewModel::resetPrivacyStats
-                )
+                    ) {
+                        if (activeGroup != null) {
+                            BottomGroupTabStrip(
+                                group = activeGroup,
+                                groupTabs = uiState.activeGroupTabs,
+                                activeTabId = uiState.activeTabId,
+                                onSelectTab = viewModel::selectTab,
+                                onCloseTab = viewModel::closeTab,
+                                onAddTabToGroup = {
+                                    viewModel.createNewTab(
+                                        groupId = activeGroup.id,
+                                        stayInSwitcher = false
+                                    )
+                                },
+                                onEditGroup = { viewModel.openGroupEditor(activeGroup.id) }
+                            )
+                        }
+                    }
+
+                    BraveBottomNavigationBar(
+                        isHomeActive = activeTab.isHomePage,
+                        isBookmarksScreenOpen = uiState.isBookmarksScreenOpen,
+                        isSettingsScreenOpen = uiState.isSettingsScreenOpen,
+                        isMenuSheetOpen = uiState.isMenuSheetOpen,
+                        isCurrentWebPageBookmarked = isCurrentWebPageBookmarked,
+                        isTabSwitcherOpen = uiState.isTabSwitcherOpen,
+                        isSearchScreenOpen = uiState.isSearchScreenOpen,
+                        openTabCount = uiState.tabs.size,
+                        onHomeClick = viewModel::onBottomHomePressed,
+                        onBookmarksClick = viewModel::onBottomBookmarksPressed,
+                        onSearchClick = {
+                            if (uiState.isSearchScreenOpen) {
+                                viewModel.closeSearchScreen()
+                            } else {
+                                viewModel.openSearchScreen(prefillCurrentUrl = false)
+                            }
+                        },
+                        onTabsClick = { viewModel.setTabSwitcherOpen(!uiState.isTabSwitcherOpen) },
+                        onMenuClick = viewModel::toggleMenuSheet
+                    )
+                }
             }
         },
         modifier = modifier.fillMaxSize()
     ) { innerPadding ->
+        val (enterOverlay, exitOverlay) = ApexMotion.containerTransformSpec(reducedMotion)
+
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -210,16 +301,18 @@ fun BrowserScreen(
                         if (currentTab.isHomePage) {
                             StartPageHome(
                                 preferences = preferences,
-                                bookmarks = bookmarks,
+                                topVisits = topVisits,
                                 onOpenSearchScreen = {
                                     viewModel.openSearchScreen(prefillCurrentUrl = false)
                                 },
                                 onSelectDestination = { url ->
                                     viewModel.submitNavigation(url, currentTab.id)
                                 },
-                                onDeleteBookmark = viewModel::deleteBookmark,
-                                onOpenBookmarksScreen = {
-                                    viewModel.setBookmarksScreenOpen(true)
+                                onAddTopVisit = viewModel::addTopVisit,
+                                onDeleteTopVisit = viewModel::deleteTopVisit,
+                                offlinePagesCount = offlinePagesCount,
+                                onOpenOfflinePagesScreen = {
+                                    viewModel.setOfflinePagesScreenOpen(true)
                                 }
                             )
                         } else {
@@ -237,109 +330,21 @@ fun BrowserScreen(
                                 onHttpsUpgradeTriggered = { _ ->
                                     viewModel.submitNavigation(currentTab.url, currentTab.id)
                                 },
-                                onScrollDelta = viewModel::onWebViewScrollDelta
+                                onScrollDelta = viewModel::onWebViewScrollDelta,
+                                onPageLoadFailed = { tabId, failedUrl ->
+                                    viewModel.onPageLoadFailed(tabId, failedUrl)
+                                }
                             )
                         }
                     }
                 }
-
-                // Supporting Side Pane for Automation Extensions on Expanded Tablets/Desktop
-                val (enterContainer, exitContainer) = ApexMotion.containerTransformSpec(reducedMotion)
-                AnimatedVisibility(
-                    visible = isExpandedScreen && uiState.isAutomationOpen,
-                    enter = enterContainer,
-                    exit = exitContainer
-                ) {
-                    AutomationPanel(
-                        activeModule = uiState.activeExtension,
-                        nanoMessages = uiState.nanoMessages,
-                        isNanoRunning = uiState.isNanoRunning,
-                        extractionRules = extractionRules,
-                        selectedRuleId = uiState.selectedRuleId,
-                        retrieverPromptInput = uiState.retrieverPromptInput,
-                        extractedRecords = uiState.extractedRecords,
-                        isRetrieverRunning = uiState.isRetrieverRunning,
-                        retrieverStatusBanner = uiState.retrieverStatusBanner,
-                        retrieverDisplayMode = uiState.retrieverDisplayMode,
-                        openTabsCount = uiState.tabs.size,
-                        isSideSheet = true,
-                        onSelectModule = viewModel::selectExtensionModule,
-                        onRunNanoPrompt = viewModel::runNanoTask,
-                        onRetrieverPromptChange = viewModel::onRetrieverPromptChanged,
-                        onSelectRule = viewModel::selectExtractionRule,
-                        onSaveRule = viewModel::saveCurrentRetrieverRule,
-                        onDeleteRule = viewModel::deleteRetrieverRule,
-                        onCaptureCurrentPage = viewModel::captureCurrentPageWithRetriever,
-                        onRunParallelAllTabs = viewModel::runParallelMultiTabExtraction,
-                        onToggleDisplayMode = viewModel::setRetrieverDisplayMode,
-                        onDismiss = { viewModel.setAutomationOpen(false) },
-                        modifier = Modifier
-                            .width(410.dp)
-                            .padding(8.dp)
-                    )
-                }
             }
 
-            // Container-Transform Overlay for Automation Extensions on Compact & Medium screens
-            val (enterOverlay, exitOverlay) = ApexMotion.containerTransformSpec(reducedMotion)
-            AnimatedVisibility(
-                visible = !isExpandedScreen && uiState.isAutomationOpen,
-                enter = enterOverlay,
-                exit = exitOverlay,
-                modifier = Modifier.fillMaxSize()
-            ) {
-                Box(
-                    contentAlignment = Alignment.BottomCenter,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.42f))
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null
-                        ) {
-                            viewModel.setAutomationOpen(false)
-                        }
-                ) {
-                    AutomationPanel(
-                        activeModule = uiState.activeExtension,
-                        nanoMessages = uiState.nanoMessages,
-                        isNanoRunning = uiState.isNanoRunning,
-                        extractionRules = extractionRules,
-                        selectedRuleId = uiState.selectedRuleId,
-                        retrieverPromptInput = uiState.retrieverPromptInput,
-                        extractedRecords = uiState.extractedRecords,
-                        isRetrieverRunning = uiState.isRetrieverRunning,
-                        retrieverStatusBanner = uiState.retrieverStatusBanner,
-                        retrieverDisplayMode = uiState.retrieverDisplayMode,
-                        openTabsCount = uiState.tabs.size,
-                        isSideSheet = false,
-                        onSelectModule = viewModel::selectExtensionModule,
-                        onRunNanoPrompt = viewModel::runNanoTask,
-                        onRetrieverPromptChange = viewModel::onRetrieverPromptChanged,
-                        onSelectRule = viewModel::selectExtractionRule,
-                        onSaveRule = viewModel::saveCurrentRetrieverRule,
-                        onDeleteRule = viewModel::deleteRetrieverRule,
-                        onCaptureCurrentPage = viewModel::captureCurrentPageWithRetriever,
-                        onRunParallelAllTabs = viewModel::runParallelMultiTabExtraction,
-                        onToggleDisplayMode = viewModel::setRetrieverDisplayMode,
-                        onDismiss = { viewModel.setAutomationOpen(false) },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .fillMaxHeight(0.88f)
-                            .padding(horizontal = 8.dp, vertical = 6.dp)
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null
-                            ) { /* consume tap inside panel */ }
-                    )
-                }
-            }
-
-            // Dedicated Search Screen (Search Engine selection moved to Settings)
+            // Dedicated Search Screen
             AnimatedVisibility(
                 visible = uiState.isSearchScreenOpen,
-                enter = if (reducedMotion) fadeIn() else enterOverlay,
-                exit = if (reducedMotion) fadeOut() else exitOverlay,
+                enter = fadeIn(tween(140)),
+                exit = fadeOut(tween(120)),
                 modifier = Modifier.fillMaxSize()
             ) {
                 SearchScreenOverlay(
@@ -348,17 +353,18 @@ fun BrowserScreen(
                     suggestions = uiState.searchSuggestions,
                     isLoadingSuggestions = uiState.isLoadingSuggestions,
                     recentHistory = searchHistory,
+                    activeTabUrl = if (!activeTab.isHomePage) activeTab.url else null,
+                    activeTabTitle = if (!activeTab.isHomePage) activeTab.title else null,
                     onQueryChange = viewModel::onSearchQueryChanged,
                     onSubmitSearch = { submitted -> viewModel.submitNavigation(submitted) },
                     onFillQuery = viewModel::onSearchQueryChanged,
                     onDeleteHistoryItem = viewModel::deleteSearchHistoryItem,
                     onClearAllHistory = viewModel::clearAllSearchHistory,
-                    onOpenSettings = { viewModel.setSettingsScreenOpen(true) },
                     onDismiss = viewModel::closeSearchScreen
                 )
             }
 
-            // Settings Screen Overlay (Default Search Engine, Privacy, Performance, Theme, Data)
+            // Settings Screen Overlay (Opened from Hamburger Menu Bottom Sheet)
             AnimatedVisibility(
                 visible = uiState.isSettingsScreenOpen,
                 enter = if (reducedMotion) fadeIn() else enterOverlay,
@@ -376,7 +382,25 @@ fun BrowserScreen(
                     onToggleDynamicColor = viewModel::toggleDynamicColor,
                     onSelectSeedPalette = viewModel::selectSeedPalette,
                     onClearBrowsingData = viewModel::resetPrivacyStats,
+                    onToggleAutoSaveOfflinePages = viewModel::setAutoSaveOfflinePagesEnabled,
+                    onClearOfflinePages = viewModel::clearAllOfflinePages,
                     onDismiss = { viewModel.setSettingsScreenOpen(false) }
+                )
+            }
+
+            // Offline Pages Screen Overlay
+            AnimatedVisibility(
+                visible = uiState.isOfflinePagesScreenOpen,
+                enter = if (reducedMotion) fadeIn() else enterOverlay,
+                exit = if (reducedMotion) fadeOut() else exitOverlay,
+                modifier = Modifier.fillMaxSize()
+            ) {
+                OfflinePagesScreenOverlay(
+                    offlinePages = offlinePages,
+                    onSelectOfflinePage = { url -> viewModel.loadOfflinePage(url) },
+                    onDeleteOfflinePage = { id -> viewModel.deleteOfflinePage(id) },
+                    onClearAllOfflinePages = viewModel::clearAllOfflinePages,
+                    onDismiss = { viewModel.setOfflinePagesScreenOpen(false) }
                 )
             }
 
@@ -410,14 +434,52 @@ fun BrowserScreen(
                     onSelectTab = viewModel::selectTab,
                     onCloseTab = viewModel::closeTab,
                     onCloseGroup = viewModel::closeGroup,
+                    onEditGroup = viewModel::openGroupEditor,
                     onMergeEntries = viewModel::mergeGridEntriesIntoGroup,
+                    onMoveGroupedTabToTarget = viewModel::moveGroupedTabToGridTarget,
                     onOpenGroup = viewModel::setExpandedGroup,
                     onAddTabToGroup = { grpId -> viewModel.createNewTab(groupId = grpId) },
                     onUngroupTab = viewModel::ungroupTab,
+                    onCycleTabColor = viewModel::cycleTabColor,
                     onNewTab = { viewModel.createNewTab() },
                     onCreateGroup = viewModel::createNewTabGroupFromSwitcher,
                     onResetAllTabs = viewModel::resetAllTabs,
                     onDismiss = { viewModel.setTabSwitcherOpen(false) }
+                )
+            }
+
+            // Hamburger Menu ModalBottomSheet (contains Settings & Quick Browser Actions)
+            if (uiState.isMenuSheetOpen) {
+                BrowserMenuBottomSheet(
+                    isHomeActive = activeTab.isHomePage,
+                    desktopViewportEnabled = preferences.desktopViewportEnabled,
+                    savedOfflinePagesCount = offlinePagesCount,
+                    onOpenSettings = { viewModel.setSettingsScreenOpen(true) },
+                    onNewTabClick = { viewModel.createNewTab() },
+                    onOpenBookmarksClick = { viewModel.setBookmarksScreenOpen(true) },
+                    onSaveOfflineClick = viewModel::saveCurrentPageForOffline,
+                    onOpenOfflinePagesClick = { viewModel.setOfflinePagesScreenOpen(true) },
+                    onReloadPageClick = viewModel::reloadActiveTab,
+                    onToggleDesktopMode = viewModel::toggleDesktopViewport,
+                    onClearBrowsingData = viewModel::resetPrivacyStats,
+                    onDismiss = { viewModel.setMenuSheetOpen(false) }
+                )
+            }
+
+            // Group Rename & Tonal Color Picker Dialog
+            val groupToEdit = uiState.editingGroup
+            if (groupToEdit != null) {
+                GroupRenameColorDialog(
+                    group = groupToEdit,
+                    onSave = { newTitle, selectedColor ->
+                        viewModel.updateGroupTitleAndColor(
+                            groupId = groupToEdit.id,
+                            newTitle = newTitle,
+                            colorOption = selectedColor
+                        )
+                    },
+                    onUngroupAll = { viewModel.ungroupAllInGroup(groupToEdit.id) },
+                    onDismiss = viewModel::dismissGroupEditor
                 )
             }
         }

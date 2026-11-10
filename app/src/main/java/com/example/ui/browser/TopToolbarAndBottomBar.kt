@@ -1,7 +1,6 @@
 package com.example.ui.browser
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -13,63 +12,64 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Bookmark
-import androidx.compose.material.icons.filled.BookmarkAdd
 import androidx.compose.material.icons.filled.Bookmarks
-import androidx.compose.material.icons.filled.DesktopWindows
 import androidx.compose.material.icons.filled.Explore
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.outlined.BookmarkAdd
 import androidx.compose.material.icons.outlined.Bookmarks
 import androidx.compose.material.icons.outlined.CleaningServices
+import androidx.compose.material.icons.outlined.CloudDone
+import androidx.compose.material.icons.outlined.CloudDownload
+import androidx.compose.material.icons.outlined.DesktopWindows
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Layers
 import androidx.compose.material.icons.outlined.Settings
-import androidx.compose.material.icons.outlined.TableChart
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.SplitButtonDefaults
-import androidx.compose.material3.SplitButtonLayout
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.minimumInteractiveComponentSize
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.R
@@ -78,8 +78,12 @@ import com.example.ui.theme.EmphasizedTypography
 import com.example.ui.theme.LocalReducedMotion
 import com.example.ui.theme.rememberMorphingCornerShape
 import com.example.ui.viewmodel.BrowserTab
-import com.example.ui.viewmodel.ExtensionModule
 
+/**
+ * Clean Material 3 TopAppBar without top Settings or Automation clutter:
+ * - On Home screen: Displays the Apex Browser title & emblem.
+ * - On Web pages: Displays the HTTPS address pill and Reload action.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CompactTopToolbar(
@@ -87,8 +91,7 @@ fun CompactTopToolbar(
     activeTab: BrowserTab,
     onAddressPillClick: () -> Unit,
     onReloadClick: () -> Unit,
-    onOpenSettingsClick: () -> Unit,
-    onOpenAutomationClick: () -> Unit,
+    searchEngine: com.example.data.preferences.SearchEngineOption = com.example.data.preferences.SearchEngineOption.DUCKDUCKGO,
     modifier: Modifier = Modifier
 ) {
     val reducedMotion = LocalReducedMotion.current
@@ -122,30 +125,38 @@ fun CompactTopToolbar(
                 ),
                 title = {
                     if (activeTab.isHomePage) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        val homeBarShape = RoundedCornerShape(16.dp)
+                        Surface(
+                            shape = homeBarShape,
+                            color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(44.dp)
+                                .clip(homeBarShape)
+                                .clickable(onClick = onAddressPillClick)
+                                .testTag("home_top_search_bar")
                         ) {
-                            Surface(
-                                shape = CircleShape,
-                                color = MaterialTheme.colorScheme.primaryContainer,
-                                modifier = Modifier.size(34.dp)
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 12.dp)
                             ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Icon(
-                                        imageVector = Icons.Filled.Explore,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                                        modifier = Modifier.size(19.dp)
-                                    )
-                                }
+                                SearchEngineLogo(
+                                    engine = searchEngine,
+                                    size = 22.dp
+                                )
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Text(
+                                    text = stringResource(R.string.home_search_placeholder_clean),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.weight(1f)
+                                )
                             }
-                            Text(
-                                text = stringResource(R.string.app_name),
-                                style = EmphasizedTypography.headlineHero,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
                         }
                     } else {
                         val pillShape = rememberMorphingCornerShape(
@@ -195,20 +206,7 @@ fun CompactTopToolbar(
                     }
                 },
                 actions = {
-                    if (activeTab.isHomePage) {
-                        IconButton(
-                            onClick = onOpenAutomationClick,
-                            modifier = Modifier
-                                .minimumInteractiveComponentSize()
-                                .testTag("top_bar_extensions_button")
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.AutoAwesome,
-                                contentDescription = stringResource(R.string.automation_panel_title),
-                                tint = MaterialTheme.colorScheme.primary
-                            )
-                        }
-                    } else {
+                    if (!activeTab.isHomePage) {
                         IconButton(
                             onClick = onReloadClick,
                             modifier = Modifier
@@ -220,18 +218,6 @@ fun CompactTopToolbar(
                                 contentDescription = stringResource(R.string.cd_reload_page)
                             )
                         }
-                    }
-
-                    IconButton(
-                        onClick = onOpenSettingsClick,
-                        modifier = Modifier
-                            .minimumInteractiveComponentSize()
-                            .testTag("top_bar_settings_button")
-                    ) {
-                        Icon(
-                            imageVector = Icons.Outlined.Settings,
-                            contentDescription = stringResource(R.string.cd_open_settings)
-                        )
                     }
                 },
                 modifier = Modifier.testTag("material_top_app_bar")
@@ -254,34 +240,25 @@ fun CompactTopToolbar(
 
 /**
  * Ergonomic Bottom NavigationBar featuring:
- * Home • Bookmarks (opens screen on Home, bookmarks page on Web) • Search (opens Search Screen) • Tabs
- * plus the M3 Expressive Split Button for AI Extensions & Main Menu (including Settings).
+ * Home • Bookmarks • Search • Tabs • Hamburger Menu (opens the Browser Menu Bottom Sheet with Settings).
  */
-@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun BraveBottomNavigationBar(
     isHomeActive: Boolean,
     isBookmarksScreenOpen: Boolean,
     isSettingsScreenOpen: Boolean,
+    isMenuSheetOpen: Boolean,
     isCurrentWebPageBookmarked: Boolean,
     isTabSwitcherOpen: Boolean,
     isSearchScreenOpen: Boolean,
     openTabCount: Int,
-    desktopViewportEnabled: Boolean,
     onHomeClick: () -> Unit,
     onBookmarksClick: () -> Unit,
     onSearchClick: () -> Unit,
     onTabsClick: () -> Unit,
-    onOpenAutomation: (ExtensionModule) -> Unit,
-    onOpenSettings: () -> Unit,
-    onNewTabClick: () -> Unit,
-    onOpenBookmarksScreenExplicit: () -> Unit,
-    onToggleDesktopMode: (Boolean) -> Unit,
-    onResetStats: () -> Unit,
+    onMenuClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var menuExpanded by remember { mutableStateOf(false) }
-
     NavigationBar(
         containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
         tonalElevation = 6.dp,
@@ -294,7 +271,8 @@ fun BraveBottomNavigationBar(
             !isBookmarksScreenOpen &&
             !isSettingsScreenOpen &&
             !isTabSwitcherOpen &&
-            !isSearchScreenOpen
+            !isSearchScreenOpen &&
+            !isMenuSheetOpen
 
         NavigationBarItem(
             selected = homeSelected,
@@ -372,129 +350,322 @@ fun BraveBottomNavigationBar(
             modifier = Modifier.testTag("nav_tabs_button")
         )
 
-        // Material 3 Expressive Split Button for AI Extensions + Main Browser Menu
-        Box(
-            contentAlignment = Alignment.Center,
+        // 5. Hamburger Menu (opens Browser Menu ModalBottomSheet containing Settings)
+        NavigationBarItem(
+            selected = isMenuSheetOpen || isSettingsScreenOpen,
+            onClick = onMenuClick,
+            icon = {
+                Icon(
+                    imageVector = Icons.Filled.Menu,
+                    contentDescription = stringResource(R.string.cd_open_menu)
+                )
+            },
+            label = { Text(stringResource(R.string.nav_menu), maxLines = 1) },
+            modifier = Modifier.testTag("nav_menu_button")
+        )
+    }
+}
+
+/**
+ * Material 3 ModalBottomSheet opened from the bottom Hamburger Menu button.
+ * Uses Material 3 Expressive Grouped Lists and places Settings cleanly inside the sheet.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun BrowserMenuBottomSheet(
+    isHomeActive: Boolean,
+    desktopViewportEnabled: Boolean,
+    savedOfflinePagesCount: Int = 0,
+    onOpenSettings: () -> Unit,
+    onNewTabClick: () -> Unit,
+    onOpenBookmarksClick: () -> Unit,
+    onSaveOfflineClick: () -> Unit = {},
+    onOpenOfflinePagesClick: () -> Unit = {},
+    onReloadPageClick: () -> Unit,
+    onToggleDesktopMode: (Boolean) -> Unit,
+    onClearBrowsingData: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        shape = MaterialTheme.shapes.extraLarge,
+        containerColor = MaterialTheme.colorScheme.surface,
+        tonalElevation = 4.dp,
+        dragHandle = { BottomSheetDefaults.DragHandle() },
+        modifier = Modifier.testTag("hamburger_menu_bottom_sheet")
+    ) {
+        Column(
+            verticalArrangement = Arrangement.spacedBy(18.dp),
             modifier = Modifier
-                .padding(end = 8.dp)
-                .minimumInteractiveComponentSize()
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .windowInsetsPadding(WindowInsets.navigationBars)
+                .padding(start = 16.dp, end = 16.dp, bottom = 24.dp)
         ) {
-            val chevronRotation by animateFloatAsState(
-                targetValue = if (menuExpanded) 180f else 0f,
-                animationSpec = ApexMotion.spatialSpec(),
-                label = "SplitButtonChevronRotation"
-            )
-
-            SplitButtonLayout(
-                leadingButton = {
-                    SplitButtonDefaults.LeadingButton(
-                        onClick = { onOpenAutomation(ExtensionModule.NANO) },
-                        modifier = Modifier.testTag("split_menu_ai_button")
-                    ) {
+            // Sheet Title Header
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 4.dp)
+            ) {
+                Surface(
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.primaryContainer,
+                    modifier = Modifier.size(38.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
                         Icon(
-                            imageVector = Icons.Filled.AutoAwesome,
-                            contentDescription = stringResource(R.string.automation_panel_title),
-                            modifier = Modifier.size(SplitButtonDefaults.LeadingIconSize)
-                        )
-                    }
-                },
-                trailingButton = {
-                    SplitButtonDefaults.TrailingButton(
-                        checked = menuExpanded,
-                        onCheckedChange = { menuExpanded = it },
-                        modifier = Modifier.testTag("split_menu_more_button")
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.KeyboardArrowDown,
-                            contentDescription = stringResource(R.string.cd_main_menu_more),
-                            modifier = Modifier
-                                .size(SplitButtonDefaults.TrailingIconSize)
-                                .rotate(chevronRotation)
-                        )
-                    }
-
-                    DropdownMenu(
-                        expanded = menuExpanded,
-                        onDismissRequest = { menuExpanded = false }
-                    ) {
-                        DropdownMenuItem(
-                            text = { Text(stringResource(R.string.menu_settings)) },
-                            leadingIcon = {
-                                Icon(Icons.Outlined.Settings, contentDescription = null)
-                            },
-                            onClick = {
-                                menuExpanded = false
-                                onOpenSettings()
-                            },
-                            modifier = Modifier.testTag("menu_open_settings")
-                        )
-                        HorizontalDivider()
-                        DropdownMenuItem(
-                            text = { Text(stringResource(R.string.ext_nano_title)) },
-                            leadingIcon = {
-                                Icon(Icons.Filled.AutoAwesome, contentDescription = null)
-                            },
-                            onClick = {
-                                menuExpanded = false
-                                onOpenAutomation(ExtensionModule.NANO)
-                            },
-                            modifier = Modifier.testTag("menu_open_nano")
-                        )
-                        DropdownMenuItem(
-                            text = { Text(stringResource(R.string.ext_retriever_title)) },
-                            leadingIcon = {
-                                Icon(Icons.Outlined.TableChart, contentDescription = null)
-                            },
-                            onClick = {
-                                menuExpanded = false
-                                onOpenAutomation(ExtensionModule.RETRIEVER)
-                            },
-                            modifier = Modifier.testTag("menu_open_retriever")
-                        )
-                        HorizontalDivider()
-                        DropdownMenuItem(
-                            text = { Text(stringResource(R.string.menu_new_tab)) },
-                            leadingIcon = { Icon(Icons.Filled.Add, contentDescription = null) },
-                            onClick = {
-                                menuExpanded = false
-                                onNewTabClick()
-                            }
-                        )
-                        DropdownMenuItem(
-                            text = { Text(stringResource(R.string.menu_open_bookmarks)) },
-                            leadingIcon = { Icon(Icons.Filled.BookmarkAdd, contentDescription = null) },
-                            onClick = {
-                                menuExpanded = false
-                                onOpenBookmarksScreenExplicit()
-                            }
-                        )
-                        DropdownMenuItem(
-                            text = {
-                                Text(
-                                    if (desktopViewportEnabled) "Desktop Viewport (On)"
-                                    else stringResource(R.string.menu_desktop_mode)
-                                )
-                            },
-                            leadingIcon = {
-                                Icon(Icons.Filled.DesktopWindows, contentDescription = null)
-                            },
-                            onClick = {
-                                menuExpanded = false
-                                onToggleDesktopMode(!desktopViewportEnabled)
-                            }
-                        )
-                        DropdownMenuItem(
-                            text = { Text(stringResource(R.string.menu_clear_data)) },
-                            leadingIcon = {
-                                Icon(Icons.Outlined.CleaningServices, contentDescription = null)
-                            },
-                            onClick = {
-                                menuExpanded = false
-                                onResetStats()
-                            }
+                            imageVector = Icons.Filled.Explore,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                            modifier = Modifier.size(20.dp)
                         )
                     }
                 }
+                Text(
+                    text = stringResource(R.string.menu_sheet_title),
+                    style = EmphasizedTypography.headlineHero,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+
+            // Group 1: Quick Browser Actions (Material 3 Grouped List)
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                MaterialGroupSectionHeader(
+                    title = stringResource(R.string.menu_quick_actions_section)
+                )
+
+                val quickActionsCount = if (isHomeActive) 4 else 6
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(GroupedListSpacing),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    MenuSheetActionRow(
+                        index = 0,
+                        totalCount = quickActionsCount,
+                        icon = Icons.Filled.Add,
+                        title = stringResource(R.string.menu_new_tab),
+                        subtitle = stringResource(R.string.menu_new_tab_subtitle),
+                        onClick = {
+                            onDismiss()
+                            onNewTabClick()
+                        },
+                        tag = "menu_sheet_new_tab"
+                    )
+
+                    MenuSheetActionRow(
+                        index = 1,
+                        totalCount = quickActionsCount,
+                        icon = Icons.Outlined.Bookmarks,
+                        title = stringResource(R.string.menu_open_bookmarks),
+                        subtitle = stringResource(R.string.menu_bookmarks_subtitle),
+                        onClick = {
+                            onDismiss()
+                            onOpenBookmarksClick()
+                        },
+                        tag = "menu_sheet_bookmarks"
+                    )
+
+                    MenuSheetActionRow(
+                        index = 2,
+                        totalCount = quickActionsCount,
+                        icon = Icons.Outlined.CloudDone,
+                        title = stringResource(R.string.menu_offline_pages),
+                        subtitle = if (savedOfflinePagesCount > 0) {
+                            "$savedOfflinePagesCount ${if (savedOfflinePagesCount == 1) "page saved" else "pages saved"}"
+                        } else {
+                            stringResource(R.string.menu_offline_pages_subtitle)
+                        },
+                        onClick = {
+                            onDismiss()
+                            onOpenOfflinePagesClick()
+                        },
+                        tag = "menu_sheet_offline_pages"
+                    )
+
+                    if (!isHomeActive) {
+                        MenuSheetActionRow(
+                            index = 3,
+                            totalCount = quickActionsCount,
+                            icon = Icons.Outlined.CloudDownload,
+                            title = stringResource(R.string.menu_save_offline),
+                            subtitle = stringResource(R.string.menu_save_offline_subtitle),
+                            onClick = {
+                                onDismiss()
+                                onSaveOfflineClick()
+                            },
+                            tag = "menu_sheet_save_offline"
+                        )
+
+                        MenuSheetActionRow(
+                            index = 4,
+                            totalCount = quickActionsCount,
+                            icon = Icons.Filled.Refresh,
+                            title = stringResource(R.string.menu_reload_page),
+                            subtitle = stringResource(R.string.menu_reload_subtitle),
+                            onClick = {
+                                onDismiss()
+                                onReloadPageClick()
+                            },
+                            tag = "menu_sheet_reload"
+                        )
+                    }
+
+                    val desktopIndex = if (isHomeActive) 3 else 5
+                    MaterialGroupListItem(
+                        index = desktopIndex,
+                        totalCount = quickActionsCount,
+                        title = stringResource(R.string.menu_desktop_mode),
+                        subtitle = stringResource(R.string.menu_desktop_subtitle),
+                        role = Role.Switch,
+                        onClick = { onToggleDesktopMode(!desktopViewportEnabled) },
+                        leadingContent = {
+                            MenuSheetIconBadge(
+                                icon = Icons.Outlined.DesktopWindows,
+                                highlighted = desktopViewportEnabled
+                            )
+                        },
+                        trailingContent = {
+                            Switch(
+                                checked = desktopViewportEnabled,
+                                onCheckedChange = null
+                            )
+                        },
+                        modifier = Modifier.testTag("menu_sheet_desktop_switch")
+                    )
+                }
+            }
+
+            // Group 2: Preferences & Privacy (Settings + Clear Browsing Data)
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                MaterialGroupSectionHeader(
+                    title = stringResource(R.string.menu_preferences_section)
+                )
+
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(GroupedListSpacing),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    MaterialGroupListItem(
+                        index = 0,
+                        totalCount = 2,
+                        title = stringResource(R.string.menu_settings),
+                        subtitle = stringResource(R.string.menu_settings_subtitle),
+                        role = Role.Button,
+                        onClick = {
+                            onDismiss()
+                            onOpenSettings()
+                        },
+                        leadingContent = {
+                            MenuSheetIconBadge(
+                                icon = Icons.Outlined.Settings,
+                                highlighted = true
+                            )
+                        },
+                        trailingContent = {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        },
+                        modifier = Modifier.testTag("menu_sheet_open_settings")
+                    )
+
+                    MaterialGroupListItem(
+                        index = 1,
+                        totalCount = 2,
+                        title = stringResource(R.string.menu_clear_data),
+                        subtitle = stringResource(R.string.menu_clear_data_subtitle),
+                        role = Role.Button,
+                        onClick = {
+                            onDismiss()
+                            onClearBrowsingData()
+                        },
+                        leadingContent = {
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = MaterialTheme.colorScheme.errorContainer,
+                                modifier = Modifier.size(40.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Outlined.CleaningServices,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onErrorContainer,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                            }
+                        },
+                        modifier = Modifier.testTag("menu_sheet_clear_data")
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MenuSheetActionRow(
+    index: Int,
+    totalCount: Int,
+    icon: ImageVector,
+    title: String,
+    subtitle: String,
+    onClick: () -> Unit,
+    tag: String
+) {
+    MaterialGroupListItem(
+        index = index,
+        totalCount = totalCount,
+        title = title,
+        subtitle = subtitle,
+        role = Role.Button,
+        onClick = onClick,
+        leadingContent = {
+            MenuSheetIconBadge(icon = icon)
+        },
+        trailingContent = {
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        },
+        modifier = Modifier.testTag(tag)
+    )
+}
+
+@Composable
+private fun MenuSheetIconBadge(
+    icon: ImageVector,
+    highlighted: Boolean = false
+) {
+    Surface(
+        shape = RoundedCornerShape(12.dp),
+        color = if (highlighted) {
+            MaterialTheme.colorScheme.primaryContainer
+        } else {
+            MaterialTheme.colorScheme.surfaceContainerHighest
+        },
+        modifier = Modifier.size(40.dp)
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = if (highlighted) {
+                    MaterialTheme.colorScheme.onPrimaryContainer
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
+                modifier = Modifier.size(20.dp)
             )
         }
     }

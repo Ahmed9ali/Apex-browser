@@ -2,6 +2,7 @@ package com.example.ui.browser
 
 import android.graphics.Bitmap
 import android.webkit.WebChromeClient
+import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.webkit.WebView
@@ -36,6 +37,7 @@ fun WebViewViewport(
     onSubresourceBlocked: (String, String, String, String, Long, Long) -> Unit,
     onHttpsUpgradeTriggered: (String) -> Unit,
     onScrollDelta: (Int) -> Unit,
+    onPageLoadFailed: (String, String) -> Unit = { _, _ -> },
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -118,6 +120,18 @@ fun WebViewViewport(
                         view?.canGoForward() ?: false
                     )
                 }
+
+                override fun onReceivedError(
+                    view: WebView?,
+                    request: WebResourceRequest?,
+                    error: WebResourceError?
+                ) {
+                    super.onReceivedError(view, request, error)
+                    if (request?.isForMainFrame == true) {
+                        val reqUrl = request.url?.toString().orEmpty()
+                        onPageLoadFailed(tab.id, reqUrl)
+                    }
+                }
             }
             onRegisterWebView(tab.id, this)
         }
@@ -136,21 +150,32 @@ fun WebViewViewport(
         )
     }
 
-    LaunchedEffect(tab.url) {
+    LaunchedEffect(tab.url, tab.isOfflineCopy, tab.offlineHtmlContent) {
         val lastTarget = webView.getTag(LAST_LOADED_URL_TAG) as? String
-        if (lastTarget != tab.url && !tab.isHomePage) {
-            webView.setTag(LAST_LOADED_URL_TAG, tab.url)
-            val builtIn = BuiltInShowcasePages.resolveHtml(tab.url)
-            if (builtIn != null) {
+        val targetKey = "${tab.url}#offline=${tab.isOfflineCopy}"
+        if (lastTarget != targetKey && !tab.isHomePage) {
+            webView.setTag(LAST_LOADED_URL_TAG, targetKey)
+            if (tab.isOfflineCopy && !tab.offlineHtmlContent.isNullOrBlank()) {
                 webView.loadDataWithBaseURL(
-                    builtIn.first,
-                    builtIn.second,
+                    tab.url,
+                    tab.offlineHtmlContent,
                     "text/html",
                     "UTF-8",
                     null
                 )
             } else {
-                webView.loadUrl(tab.url)
+                val builtIn = BuiltInShowcasePages.resolveHtml(tab.url)
+                if (builtIn != null) {
+                    webView.loadDataWithBaseURL(
+                        builtIn.first,
+                        builtIn.second,
+                        "text/html",
+                        "UTF-8",
+                        null
+                    )
+                } else {
+                    webView.loadUrl(tab.url)
+                }
             }
         }
     }

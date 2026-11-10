@@ -11,9 +11,11 @@ import androidx.room.RoomDatabase
         BlockedDomainLogEntity::class,
         ExtractionRuleEntity::class,
         BookmarkEntity::class,
-        SearchHistoryEntity::class
+        SearchHistoryEntity::class,
+        OfflinePageEntity::class,
+        TopVisitEntity::class
     ],
-    version = 3,
+    version = 5,
     exportSchema = false
 )
 abstract class ApexDatabase : RoomDatabase() {

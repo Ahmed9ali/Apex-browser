@@ -1,8 +1,11 @@
 package com.example.ui.theme
 
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Immutable
 import androidx.compose.ui.graphics.Color
 import kotlin.math.abs
 import kotlin.math.max
@@ -16,10 +19,73 @@ enum class SeedPalettePreset(val label: String, val seedColor: Color) {
 }
 
 /**
+ * Tonal color options for Tab Groups and individual Tabs, derived dynamically
+ * for light and dark Material 3 themes without hardcoded hex colors in UI composables.
+ */
+enum class TabGroupColorOption(
+    val id: String,
+    val label: String,
+    val hueDegrees: Float
+) {
+    COBALT("cobalt", "Cobalt", 218f),
+    EMERALD("emerald", "Emerald", 155f),
+    VIOLET("violet", "Violet", 272f),
+    CORAL("coral", "Coral", 14f),
+    AMBER("amber", "Amber", 42f),
+    CYAN("cyan", "Cyan", 192f),
+    ROSE("rose", "Rose", 336f);
+
+    fun next(): TabGroupColorOption {
+        val all = entries
+        return all[(ordinal + 1) % all.size]
+    }
+}
+
+@Immutable
+data class TabGroupTonalColors(
+    val accent: Color,
+    val onAccent: Color,
+    val container: Color,
+    val onContainer: Color,
+    val subtleSurface: Color,
+    val border: Color
+)
+
+@Composable
+fun TabGroupColorOption.resolveTonalColors(
+    darkTheme: Boolean = isSystemInDarkTheme()
+): TabGroupTonalColors {
+    return ApexColorSchemeBuilder.groupTonalColors(this, darkTheme)
+}
+
+/**
  * Generates a full Material 3 Expressive tonal [ColorScheme] from any [seed] color,
  * mirroring `ColorScheme.fromSeed()` with full tonal surface container roles.
  */
 object ApexColorSchemeBuilder {
+
+    fun groupTonalColors(option: TabGroupColorOption, darkTheme: Boolean): TabGroupTonalColors {
+        val h = option.hueDegrees
+        return if (darkTheme) {
+            TabGroupTonalColors(
+                accent = hslToComposeColor(h, 0.85f, 0.72f),
+                onAccent = hslToComposeColor(h, 0.88f, 0.13f),
+                container = hslToComposeColor(h, 0.65f, 0.25f),
+                onContainer = hslToComposeColor(h, 0.90f, 0.91f),
+                subtleSurface = hslToComposeColor(h, 0.42f, 0.16f),
+                border = hslToComposeColor(h, 0.76f, 0.62f)
+            )
+        } else {
+            TabGroupTonalColors(
+                accent = hslToComposeColor(h, 0.82f, 0.42f),
+                onAccent = hslToComposeColor(h, 0.20f, 0.99f),
+                container = hslToComposeColor(h, 0.84f, 0.89f),
+                onContainer = hslToComposeColor(h, 0.85f, 0.15f),
+                subtleSurface = hslToComposeColor(h, 0.68f, 0.94f),
+                border = hslToComposeColor(h, 0.72f, 0.48f)
+            )
+        }
+    }
 
     fun fromSeed(seed: Color, darkTheme: Boolean): ColorScheme {
         val primaryHue = extractHueDegrees(seed)

@@ -59,3 +59,29 @@ data class SearchHistoryEntity(
     val searchEngineName: String,
     val timestamp: Long = System.currentTimeMillis()
 )
+
+@Entity(
+    tableName = "offline_pages",
+    indices = [Index(value = ["url"], unique = true)]
+)
+data class OfflinePageEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val url: String,
+    val title: String,
+    val htmlContent: String,
+    val textSnippet: String = "",
+    val sizeBytes: Long = 0L,
+    val savedAt: Long = System.currentTimeMillis()
+)
+
+@Entity(
+    tableName = "top_visits",
+    indices = [Index(value = ["url"], unique = true)]
+)
+data class TopVisitEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val title: String,
+    val url: String,
+    val createdAt: Long = System.currentTimeMillis()
+)
+

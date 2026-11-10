@@ -14,18 +14,22 @@ import com.example.data.local.ApexDatabase
 import com.example.data.local.BlockedDomainLogEntity
 import com.example.data.local.BookmarkEntity
 import com.example.data.local.ExtractionRuleEntity
+import com.example.data.local.OfflinePageEntity
 import com.example.data.local.PrivacyStatSummaryEntity
 import com.example.data.local.SearchHistoryEntity
+import com.example.data.local.TopVisitEntity
 import com.example.data.preferences.BrowserPreferences
 import com.example.data.preferences.SearchEngineOption
 import com.example.data.preferences.UserPreferencesRepository
 import com.example.data.repository.BrowserRepository
+import com.example.engine.OfflineStorageUtil
 import com.example.engine.PerformanceOptimizer
 import com.example.engine.PreloadCandidate
 import com.example.engine.PrivacyManager
 import com.example.engine.SearchSuggestionEngine
 import com.example.engine.SearchSuggestionItem
 import com.example.ui.theme.SeedPalettePreset
+import com.example.ui.theme.TabGroupColorOption
 import java.util.UUID
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -39,7 +43,8 @@ import kotlinx.coroutines.launch
 
 data class TabGroupInfo(
     val id: String = "grp_${UUID.randomUUID()}",
-    val title: String
+    val title: String,
+    val colorOption: TabGroupColorOption = TabGroupColorOption.COBALT
 )
 
 data class BrowserTab(
@@ -47,13 +52,17 @@ data class BrowserTab(
     val title: String = "Home",
     val url: String = "apex://home",
     val groupId: String? = null,
+    val tabColor: TabGroupColorOption? = null,
     val isLoading: Boolean = false,
     val progress: Float = 0f,
     val canGoBack: Boolean = false,
     val canGoForward: Boolean = false,
     val blockedCountOnPage: Int = 0,
     val isHttps: Boolean = true,
-    val wasUpgradedToHttps: Boolean = false
+    val wasUpgradedToHttps: Boolean = false,
+    val isOfflineCopy: Boolean = false,
+    val offlineSavedAt: Long? = null,
+    val offlineHtmlContent: String? = null
 ) {
     val isHomePage: Boolean
         get() = url.isBlank() || url.equals("apex://home", ignoreCase = true)
@@ -91,6 +100,7 @@ data class BrowserUiState(
     ),
     val tabGroups: List<TabGroupInfo> = emptyList(),
     val expandedGroupId: String? = null,
+    val editingGroupId: String? = null,
     val activeTabId: String = "tab_home",
     val previousTabIndex: Int = 0,
     val isToolbarVisible: Boolean = true,
@@ -100,7 +110,9 @@ data class BrowserUiState(
     val isLoadingSuggestions: Boolean = false,
     val isTabSwitcherOpen: Boolean = false,
     val isBookmarksScreenOpen: Boolean = false,
+    val isOfflinePagesScreenOpen: Boolean = false,
     val isSettingsScreenOpen: Boolean = false,
+    val isMenuSheetOpen: Boolean = false,
     val isAutomationOpen: Boolean = false,
     val activeExtension: ExtensionModule = ExtensionModule.NANO,
     val snackbarNotice: String? = null,
@@ -126,6 +138,24 @@ data class BrowserUiState(
     val activeTabIndex: Int
         get() = tabs.indexOfFirst { it.id == activeTabId }.coerceAtLeast(0)
 
+    val activeTabGroup: TabGroupInfo?
+        get() {
+            val gId = activeTab.groupId ?: return null
+            return tabGroups.firstOrNull { it.id == gId }
+        }
+
+    val activeGroupTabs: List<BrowserTab>
+        get() {
+            val gId = activeTabGroup?.id ?: return emptyList()
+            return tabs.filter { it.groupId == gId }
+        }
+
+    val editingGroup: TabGroupInfo?
+        get() {
+            val editId = editingGroupId ?: return null
+            return tabGroups.firstOrNull { it.id == editId }
+        }
+
     val gridEntries: List<TabGridEntry>
         get() {
             val emittedGroups = mutableSetOf<String>()
@@ -138,11 +168,18 @@ data class BrowserUiState(
                     result.add(TabGridEntry.SingleTab(tab))
                 } else if (emittedGroups.add(gId)) {
                     val memberTabs = tabs.filter { it.groupId == gId }
-                    if (memberTabs.size <= 1) {
-                        result.add(TabGridEntry.SingleTab(tab))
-                    } else {
-                        val info = groupLookup[gId] ?: TabGroupInfo(id = gId, title = "Tab Group")
+                    val info = groupLookup[gId]
+                    if (info != null && memberTabs.isNotEmpty()) {
                         result.add(TabGridEntry.GroupTab(group = info, tabs = memberTabs))
+                    } else if (memberTabs.size >= 2) {
+                        result.add(
+                            TabGridEntry.GroupTab(
+                                group = TabGroupInfo(id = gId, title = "Tab Group"),
+                                tabs = memberTabs
+                            )
+                        )
+                    } else {
+                        result.add(TabGridEntry.SingleTab(tab))
                     }
                 }
             }
@@ -204,6 +241,27 @@ class BrowserViewModel(
             initialValue = emptyList()
         )
 
+    val offlinePagesState: StateFlow<List<OfflinePageEntity>> = repository.offlinePagesFlow
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = emptyList()
+        )
+
+    val offlinePagesCountState: StateFlow<Int> = repository.offlinePagesCountFlow
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = 0
+        )
+
+    val topVisitsState: StateFlow<List<TopVisitEntity>> = repository.topVisitsFlow
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = emptyList()
+        )
+
     private val webViewRegistry = mutableMapOf<String, WebView>()
     private var suggestionJob: Job? = null
 
@@ -226,27 +284,19 @@ class BrowserViewModel(
     // --- Dedicated Search Screen & Search-Engine Suggestions ---
 
     fun openSearchScreen(prefillCurrentUrl: Boolean = false) {
-        val currentTab = _uiState.value.activeTab
-        val initialQuery = if (prefillCurrentUrl && !currentTab.isHomePage) {
-            currentTab.url
-        } else {
-            ""
-        }
         _uiState.update {
             it.copy(
                 isSearchScreenOpen = true,
                 isBookmarksScreenOpen = false,
                 isSettingsScreenOpen = false,
+                isMenuSheetOpen = false,
                 isTabSwitcherOpen = false,
                 isAutomationOpen = false,
                 isToolbarVisible = true,
-                searchQuery = initialQuery,
+                searchQuery = "",
                 searchSuggestions = emptyList(),
-                isLoadingSuggestions = initialQuery.isNotBlank()
+                isLoadingSuggestions = false
             )
-        }
-        if (initialQuery.isNotBlank()) {
-            triggerSuggestionsFetch(initialQuery, preferencesState.value.searchEngine)
         }
     }
 
@@ -353,7 +403,10 @@ class BrowserViewModel(
                         blockedCountOnPage = 0,
                         isHttps = normalized.finalUrl.startsWith("https://") || normalized.isBuiltInScheme,
                         wasUpgradedToHttps = normalized.wasUpgradedToHttps,
-                        isLoading = normalized.finalUrl != "apex://home"
+                        isLoading = normalized.finalUrl != "apex://home",
+                        isOfflineCopy = false,
+                        offlineSavedAt = null,
+                        offlineHtmlContent = null
                     )
                 } else {
                     tab
@@ -364,6 +417,7 @@ class BrowserViewModel(
                 isSearchScreenOpen = false,
                 isLoadingSuggestions = false,
                 isBookmarksScreenOpen = false,
+                isOfflinePagesScreenOpen = false,
                 isSettingsScreenOpen = false,
                 isTabSwitcherOpen = false,
                 isToolbarVisible = true
@@ -415,6 +469,7 @@ class BrowserViewModel(
         canGoBack: Boolean,
         canGoForward: Boolean
     ) {
+        var finishedUrl = ""
         _uiState.update { state ->
             state.copy(
                 tabs = state.tabs.map { tab ->
@@ -424,6 +479,7 @@ class BrowserViewModel(
                         } else {
                             tab.url
                         }
+                        finishedUrl = effectiveUrl
                         tab.copy(
                             title = title?.takeIf { it.isNotBlank() } ?: deriveShortTitle(effectiveUrl),
                             url = effectiveUrl,
@@ -446,6 +502,31 @@ class BrowserViewModel(
                 enabled = preferencesState.value.aggressivePreloadEnabled
             ) { candidates ->
                 _uiState.update { it.copy(preloadCandidates = candidates) }
+            }
+        }
+
+        // Auto-cache page content for offline viewing if enabled
+        if (wv != null && preferencesState.value.autoSaveOfflinePagesEnabled) {
+            val currentTab = _uiState.value.tabs.firstOrNull { it.id == tabId }
+            if (currentTab != null && !currentTab.isOfflineCopy && !currentTab.isHomePage &&
+                !finishedUrl.startsWith("apex://", ignoreCase = true) &&
+                finishedUrl.startsWith("http", ignoreCase = true)
+            ) {
+                val pageTitle = currentTab.title
+                wv.evaluateJavascript(
+                    "(function() { return document.documentElement ? document.documentElement.outerHTML : (document.body ? document.body.outerHTML : ''); })();"
+                ) { rawOutput ->
+                    val html = OfflineStorageUtil.unescapeJsString(rawOutput)
+                    if (html.isNotBlank() && html.length > 50) {
+                        viewModelScope.launch {
+                            repository.saveOfflinePage(
+                                url = finishedUrl,
+                                title = pageTitle,
+                                htmlContent = html
+                            )
+                        }
+                    }
+                }
             }
         }
     }
@@ -523,10 +604,14 @@ class BrowserViewModel(
         groupId: String? = null,
         stayInSwitcher: Boolean = groupId != null
     ) {
+        val inheritedColor = groupId?.let { gId ->
+            _uiState.value.tabGroups.firstOrNull { it.id == gId }?.colorOption
+        }
         val newTab = BrowserTab(
             title = if (initialUrl == "apex://home") "Home" else deriveShortTitle(initialUrl),
             url = initialUrl,
-            groupId = groupId
+            groupId = groupId,
+            tabColor = inheritedColor
         )
         _uiState.update { state ->
             state.copy(
@@ -549,23 +634,43 @@ class BrowserViewModel(
         _uiState.update { state ->
             val newGroupId = "grp_${UUID.randomUUID()}"
             val groupNumber = state.tabGroups.size + 1
-            val newGroup = TabGroupInfo(id = newGroupId, title = "Group $groupNumber")
+            val defaultColor = TabGroupColorOption.entries[
+                state.tabGroups.size % TabGroupColorOption.entries.size
+            ]
+            val newGroup = TabGroupInfo(
+                id = newGroupId,
+                title = "Group $groupNumber",
+                colorOption = defaultColor
+            )
 
             val ungroupedTabs = state.tabs.filter { it.groupId == null }
             val updatedTabs = if (ungroupedTabs.size >= 2) {
                 val idsToGroup = ungroupedTabs.takeLast(2).map { it.id }.toSet()
                 state.tabs.map { tab ->
-                    if (tab.id in idsToGroup) tab.copy(groupId = newGroupId) else tab
+                    if (tab.id in idsToGroup) {
+                        tab.copy(groupId = newGroupId, tabColor = tab.tabColor ?: defaultColor)
+                    } else {
+                        tab
+                    }
                 }
             } else if (ungroupedTabs.size == 1) {
                 val existingUngroupedId = ungroupedTabs.single().id
-                val companionTab = BrowserTab(title = "Home", url = "apex://home", groupId = newGroupId)
+                val companionTab = BrowserTab(
+                    title = "Home",
+                    url = "apex://home",
+                    groupId = newGroupId,
+                    tabColor = defaultColor
+                )
                 state.tabs.map { tab ->
-                    if (tab.id == existingUngroupedId) tab.copy(groupId = newGroupId) else tab
+                    if (tab.id == existingUngroupedId) {
+                        tab.copy(groupId = newGroupId, tabColor = tab.tabColor ?: defaultColor)
+                    } else {
+                        tab
+                    }
                 } + companionTab
             } else {
-                val t1 = BrowserTab(title = "Home", url = "apex://home", groupId = newGroupId)
-                val t2 = BrowserTab(title = "Home", url = "apex://home", groupId = newGroupId)
+                val t1 = BrowserTab(title = "Home", url = "apex://home", groupId = newGroupId, tabColor = defaultColor)
+                val t2 = BrowserTab(title = "Home", url = "apex://home", groupId = newGroupId, tabColor = defaultColor)
                 state.tabs + t1 + t2
             }
 
@@ -573,6 +678,7 @@ class BrowserViewModel(
             state.copy(
                 tabs = cleanTabs,
                 tabGroups = cleanGroups,
+                editingGroupId = newGroupId,
                 isTabSwitcherOpen = true
             )
         }
@@ -592,11 +698,22 @@ class BrowserViewModel(
                 !draggedIsGroup && !targetIsGroup -> {
                     val newGroupId = "grp_${UUID.randomUUID()}"
                     val groupNumber = state.tabGroups.size + 1
-                    val newGroup = TabGroupInfo(id = newGroupId, title = "Group $groupNumber")
+                    val targetTab = state.tabs.firstOrNull { it.id == targetId }
+                    val draggedTab = state.tabs.firstOrNull { it.id == draggedId }
+                    val chosenColor = targetTab?.tabColor
+                        ?: draggedTab?.tabColor
+                        ?: TabGroupColorOption.entries[
+                            state.tabGroups.size % TabGroupColorOption.entries.size
+                        ]
+                    val newGroup = TabGroupInfo(
+                        id = newGroupId,
+                        title = "Group $groupNumber",
+                        colorOption = chosenColor
+                    )
 
                     val updatedTabs = state.tabs.map { tab ->
                         if (tab.id == targetId || tab.id == draggedId) {
-                            tab.copy(groupId = newGroupId)
+                            tab.copy(groupId = newGroupId, tabColor = tab.tabColor ?: chosenColor)
                         } else {
                             tab
                         }
@@ -610,8 +727,13 @@ class BrowserViewModel(
                 }
 
                 !draggedIsGroup && targetIsGroup -> {
+                    val targetGroupColor = state.tabGroups.firstOrNull { it.id == targetId }?.colorOption
                     val updatedTabs = state.tabs.map { tab ->
-                        if (tab.id == draggedId) tab.copy(groupId = targetId) else tab
+                        if (tab.id == draggedId) {
+                            tab.copy(groupId = targetId, tabColor = tab.tabColor ?: targetGroupColor)
+                        } else {
+                            tab
+                        }
                     }
                     normalizeGroups(updatedTabs, state.tabGroups).let { (cleanTabs, cleanGroups) ->
                         state.copy(tabs = cleanTabs, tabGroups = cleanGroups)
@@ -619,8 +741,13 @@ class BrowserViewModel(
                 }
 
                 draggedIsGroup && !targetIsGroup -> {
+                    val draggedGroupColor = state.tabGroups.firstOrNull { it.id == draggedId }?.colorOption
                     val updatedTabs = state.tabs.map { tab ->
-                        if (tab.id == targetId) tab.copy(groupId = draggedId) else tab
+                        if (tab.id == targetId) {
+                            tab.copy(groupId = draggedId, tabColor = tab.tabColor ?: draggedGroupColor)
+                        } else {
+                            tab
+                        }
                     }
                     normalizeGroups(updatedTabs, state.tabGroups).let { (cleanTabs, cleanGroups) ->
                         state.copy(tabs = cleanTabs, tabGroups = cleanGroups)
@@ -628,8 +755,13 @@ class BrowserViewModel(
                 }
 
                 else -> {
+                    val targetGroupColor = state.tabGroups.firstOrNull { it.id == targetId }?.colorOption
                     val updatedTabs = state.tabs.map { tab ->
-                        if (tab.groupId == draggedId) tab.copy(groupId = targetId) else tab
+                        if (tab.groupId == draggedId) {
+                            tab.copy(groupId = targetId, tabColor = targetGroupColor ?: tab.tabColor)
+                        } else {
+                            tab
+                        }
                     }
                     normalizeGroups(updatedTabs, state.tabGroups).let { (cleanTabs, cleanGroups) ->
                         state.copy(
@@ -643,6 +775,109 @@ class BrowserViewModel(
         }
     }
 
+    fun moveGroupedTabToGridTarget(tabId: String, targetGridKey: String?) {
+        if (targetGridKey == null) {
+            ungroupTab(tabId)
+            return
+        }
+        val currentTab = _uiState.value.tabs.firstOrNull { it.id == tabId } ?: return
+        val sourceGroupKey = currentTab.groupId?.let { "group_$it" }
+        if (targetGridKey == sourceGroupKey || targetGridKey == "single_$tabId") {
+            return
+        }
+
+        _uiState.update { state ->
+            if (targetGridKey.startsWith("group_")) {
+                val destGroupId = targetGridKey.removePrefix("group_")
+                val destColor = state.tabGroups.firstOrNull { it.id == destGroupId }?.colorOption
+                val updatedTabs = state.tabs.map { tab ->
+                    if (tab.id == tabId) {
+                        tab.copy(groupId = destGroupId, tabColor = destColor ?: tab.tabColor)
+                    } else {
+                        tab
+                    }
+                }
+                val (cleanTabs, cleanGroups) = normalizeGroups(updatedTabs, state.tabGroups)
+                state.copy(tabs = cleanTabs, tabGroups = cleanGroups)
+            } else {
+                val otherTabId = targetGridKey.removePrefix("single_")
+                val newGroupId = "grp_${UUID.randomUUID()}"
+                val groupNumber = state.tabGroups.size + 1
+                val chosenColor = TabGroupColorOption.entries[
+                    state.tabGroups.size % TabGroupColorOption.entries.size
+                ]
+                val newGroup = TabGroupInfo(
+                    id = newGroupId,
+                    title = "Group $groupNumber",
+                    colorOption = chosenColor
+                )
+                val updatedTabs = state.tabs.map { tab ->
+                    if (tab.id == tabId || tab.id == otherTabId) {
+                        tab.copy(groupId = newGroupId, tabColor = chosenColor)
+                    } else {
+                        tab
+                    }
+                }
+                val (cleanTabs, cleanGroups) = normalizeGroups(updatedTabs, state.tabGroups + newGroup)
+                state.copy(tabs = cleanTabs, tabGroups = cleanGroups)
+            }
+        }
+    }
+
+    fun openGroupEditor(groupId: String) {
+        _uiState.update { it.copy(editingGroupId = groupId) }
+    }
+
+    fun dismissGroupEditor() {
+        _uiState.update { it.copy(editingGroupId = null) }
+    }
+
+    fun updateGroupTitleAndColor(
+        groupId: String,
+        newTitle: String,
+        colorOption: TabGroupColorOption
+    ) {
+        _uiState.update { state ->
+            val trimmed = newTitle.trim()
+            val updatedGroups = state.tabGroups.map { grp ->
+                if (grp.id == groupId) {
+                    grp.copy(
+                        title = trimmed.ifEmpty { grp.title },
+                        colorOption = colorOption
+                    )
+                } else {
+                    grp
+                }
+            }
+            val updatedTabs = state.tabs.map { tab ->
+                if (tab.groupId == groupId) {
+                    tab.copy(tabColor = colorOption)
+                } else {
+                    tab
+                }
+            }
+            state.copy(
+                tabs = updatedTabs,
+                tabGroups = updatedGroups,
+                editingGroupId = null
+            )
+        }
+    }
+
+    fun cycleTabColor(tabId: String) {
+        _uiState.update { state ->
+            val updatedTabs = state.tabs.map { tab ->
+                if (tab.id == tabId) {
+                    val nextColor = tab.tabColor?.next() ?: TabGroupColorOption.COBALT
+                    tab.copy(tabColor = nextColor)
+                } else {
+                    tab
+                }
+            }
+            state.copy(tabs = updatedTabs)
+        }
+    }
+
     fun ungroupTab(tabId: String) {
         _uiState.update { state ->
             val updatedTabs = state.tabs.map { tab ->
@@ -652,10 +887,29 @@ class BrowserViewModel(
             val validExpanded = state.expandedGroupId?.takeIf { expId ->
                 cleanGroups.any { it.id == expId }
             }
+            val validEditing = state.editingGroupId?.takeIf { editId ->
+                cleanGroups.any { it.id == editId }
+            }
             state.copy(
                 tabs = cleanTabs,
                 tabGroups = cleanGroups,
-                expandedGroupId = validExpanded
+                expandedGroupId = validExpanded,
+                editingGroupId = validEditing
+            )
+        }
+    }
+
+    fun ungroupAllInGroup(groupId: String) {
+        _uiState.update { state ->
+            val updatedTabs = state.tabs.map { tab ->
+                if (tab.groupId == groupId) tab.copy(groupId = null) else tab
+            }
+            val remainingGroups = state.tabGroups.filterNot { it.id == groupId }
+            state.copy(
+                tabs = updatedTabs,
+                tabGroups = remainingGroups,
+                expandedGroupId = if (state.expandedGroupId == groupId) null else state.expandedGroupId,
+                editingGroupId = if (state.editingGroupId == groupId) null else state.editingGroupId
             )
         }
     }
@@ -676,6 +930,7 @@ class BrowserViewModel(
                     tabs = listOf(fresh),
                     tabGroups = emptyList(),
                     expandedGroupId = null,
+                    editingGroupId = null,
                     activeTabId = fresh.id
                 )
             } else {
@@ -689,6 +944,7 @@ class BrowserViewModel(
                     tabs = cleanTabs,
                     tabGroups = cleanGroups,
                     expandedGroupId = if (state.expandedGroupId == groupId) null else state.expandedGroupId,
+                    editingGroupId = if (state.editingGroupId == groupId) null else state.editingGroupId,
                     activeTabId = nextActive
                 )
             }
@@ -698,6 +954,7 @@ class BrowserViewModel(
     fun closeTab(tabId: String) {
         webViewRegistry.remove(tabId)?.destroy()
         _uiState.update { state ->
+            val closedTab = state.tabs.firstOrNull { it.id == tabId }
             val remaining = state.tabs.filterNot { it.id == tabId }
             if (remaining.isEmpty()) {
                 val fresh = BrowserTab(title = "Home", url = "apex://home")
@@ -705,22 +962,31 @@ class BrowserViewModel(
                     tabs = listOf(fresh),
                     tabGroups = emptyList(),
                     expandedGroupId = null,
+                    editingGroupId = null,
                     activeTabId = fresh.id
                 )
             } else {
                 val (cleanTabs, cleanGroups) = normalizeGroups(remaining, state.tabGroups)
                 val nextActiveId = if (state.activeTabId == tabId) {
-                    cleanTabs.last().id
+                    val closedGroupId = closedTab?.groupId
+                    val siblingInGroup = closedGroupId?.let { gId ->
+                        cleanTabs.lastOrNull { it.groupId == gId }
+                    }
+                    siblingInGroup?.id ?: cleanTabs.last().id
                 } else {
                     state.activeTabId
                 }
                 val validExpanded = state.expandedGroupId?.takeIf { expId ->
                     cleanGroups.any { it.id == expId }
                 }
+                val validEditing = state.editingGroupId?.takeIf { editId ->
+                    cleanGroups.any { it.id == editId }
+                }
                 state.copy(
                     tabs = cleanTabs,
                     tabGroups = cleanGroups,
                     expandedGroupId = validExpanded,
+                    editingGroupId = validEditing,
                     activeTabId = nextActiveId
                 )
             }
@@ -732,7 +998,10 @@ class BrowserViewModel(
         groups: List<TabGroupInfo>
     ): Pair<List<BrowserTab>, List<TabGroupInfo>> {
         val countsByGroup = tabs.mapNotNull { it.groupId }.groupingBy { it }.eachCount()
-        val validGroupIds = countsByGroup.filterValues { it >= 2 }.keys
+        val knownGroupIds = groups.map { it.id }.toSet()
+        val validGroupIds = countsByGroup.filter { (gId, count) ->
+            if (gId in knownGroupIds) count >= 1 else count >= 2
+        }.keys
         val cleanedTabs = tabs.map { tab ->
             if (tab.groupId != null && tab.groupId !in validGroupIds) {
                 tab.copy(groupId = null)
@@ -753,6 +1022,7 @@ class BrowserViewModel(
                 tabs = listOf(fresh),
                 tabGroups = emptyList(),
                 expandedGroupId = null,
+                editingGroupId = null,
                 activeTabId = fresh.id,
                 isTabSwitcherOpen = false
             )
@@ -800,6 +1070,7 @@ class BrowserViewModel(
                 },
                 isBookmarksScreenOpen = false,
                 isSettingsScreenOpen = false,
+                isMenuSheetOpen = false,
                 isSearchScreenOpen = false,
                 isTabSwitcherOpen = false,
                 isAutomationOpen = false,
@@ -811,7 +1082,7 @@ class BrowserViewModel(
     fun onBottomBookmarksPressed() {
         val state = _uiState.value
         if (state.isBookmarksScreenOpen) {
-            _uiState.update { it.copy(isBookmarksScreenOpen = false) }
+            _uiState.update { it.copy(isBookmarksScreenOpen = false, isMenuSheetOpen = false) }
             return
         }
         if (state.activeTab.isHomePage || state.isSettingsScreenOpen) {
@@ -819,6 +1090,7 @@ class BrowserViewModel(
                 it.copy(
                     isBookmarksScreenOpen = true,
                     isSettingsScreenOpen = false,
+                    isMenuSheetOpen = false,
                     isSearchScreenOpen = false,
                     isTabSwitcherOpen = false,
                     isAutomationOpen = false,
@@ -833,6 +1105,7 @@ class BrowserViewModel(
                     it.copy(
                         isTabSwitcherOpen = false,
                         isSettingsScreenOpen = false,
+                        isMenuSheetOpen = false,
                         isSearchScreenOpen = false,
                         snackbarNotice = "Bookmarked '${active.title}'"
                     )
@@ -845,9 +1118,26 @@ class BrowserViewModel(
         _uiState.update {
             it.copy(
                 isBookmarksScreenOpen = open,
+                isOfflinePagesScreenOpen = if (open) false else it.isOfflinePagesScreenOpen,
+                isMenuSheetOpen = if (open) false else it.isMenuSheetOpen,
                 isSettingsScreenOpen = if (open) false else it.isSettingsScreenOpen,
                 isSearchScreenOpen = if (open) false else it.isSearchScreenOpen,
                 isTabSwitcherOpen = if (open) false else it.isTabSwitcherOpen,
+                isToolbarVisible = true
+            )
+        }
+    }
+
+    fun setOfflinePagesScreenOpen(open: Boolean) {
+        _uiState.update {
+            it.copy(
+                isOfflinePagesScreenOpen = open,
+                isBookmarksScreenOpen = if (open) false else it.isBookmarksScreenOpen,
+                isMenuSheetOpen = if (open) false else it.isMenuSheetOpen,
+                isSettingsScreenOpen = if (open) false else it.isSettingsScreenOpen,
+                isSearchScreenOpen = if (open) false else it.isSearchScreenOpen,
+                isTabSwitcherOpen = if (open) false else it.isTabSwitcherOpen,
+                isAutomationOpen = if (open) false else it.isAutomationOpen,
                 isToolbarVisible = true
             )
         }
@@ -857,6 +1147,8 @@ class BrowserViewModel(
         _uiState.update {
             it.copy(
                 isSettingsScreenOpen = open,
+                isOfflinePagesScreenOpen = if (open) false else it.isOfflinePagesScreenOpen,
+                isMenuSheetOpen = if (open) false else it.isMenuSheetOpen,
                 isBookmarksScreenOpen = if (open) false else it.isBookmarksScreenOpen,
                 isSearchScreenOpen = if (open) false else it.isSearchScreenOpen,
                 isTabSwitcherOpen = if (open) false else it.isTabSwitcherOpen,
@@ -866,13 +1158,274 @@ class BrowserViewModel(
         }
     }
 
+    fun setMenuSheetOpen(open: Boolean) {
+        _uiState.update { it.copy(isMenuSheetOpen = open) }
+    }
+
+    fun toggleMenuSheet() {
+        _uiState.update { it.copy(isMenuSheetOpen = !it.isMenuSheetOpen) }
+    }
+
     fun deleteBookmark(id: Long) {
         viewModelScope.launch { repository.deleteBookmark(id) }
+    }
+
+    fun addTopVisit(title: String, url: String) {
+        viewModelScope.launch {
+            repository.addTopVisit(title, url)
+            _uiState.update { it.copy(snackbarNotice = "Added to Top Visits") }
+        }
+    }
+
+    fun deleteTopVisit(id: Long) {
+        viewModelScope.launch {
+            repository.deleteTopVisit(id)
+            _uiState.update { it.copy(snackbarNotice = "Removed from Top Visits") }
+        }
+    }
+
+    fun saveCurrentPageForOffline() {
+        val active = _uiState.value.activeTab
+        if (active.isHomePage) {
+            _uiState.update {
+                it.copy(
+                    snackbarNotice = "Home page is already available offline",
+                    isMenuSheetOpen = false
+                )
+            }
+            return
+        }
+
+        // Built-in showcase pages
+        val builtIn = com.example.engine.BuiltInShowcasePages.resolveHtml(active.url)
+        if (builtIn != null) {
+            viewModelScope.launch {
+                repository.saveOfflinePage(
+                    url = active.url,
+                    title = active.title,
+                    htmlContent = builtIn.second
+                )
+                _uiState.update {
+                    it.copy(
+                        snackbarNotice = "Saved '${active.title}' for offline viewing",
+                        isMenuSheetOpen = false
+                    )
+                }
+            }
+            return
+        }
+
+        val wv = webViewRegistry[active.id]
+        if (wv != null) {
+            wv.evaluateJavascript(
+                "(function() { return document.documentElement ? document.documentElement.outerHTML : (document.body ? document.body.outerHTML : ''); })();"
+            ) { rawOutput ->
+                val html = OfflineStorageUtil.unescapeJsString(rawOutput)
+                if (html.isNotBlank() && html.length > 30) {
+                    viewModelScope.launch {
+                        repository.saveOfflinePage(
+                            url = active.url,
+                            title = active.title,
+                            htmlContent = html
+                        )
+                        _uiState.update {
+                            it.copy(
+                                snackbarNotice = "Saved '${active.title}' for offline viewing",
+                                isMenuSheetOpen = false
+                            )
+                        }
+                    }
+                } else {
+                    _uiState.update {
+                        it.copy(
+                            snackbarNotice = "Unable to capture page content for offline use",
+                            isMenuSheetOpen = false
+                        )
+                    }
+                }
+            }
+        } else {
+            _uiState.update {
+                it.copy(
+                    snackbarNotice = "Page not ready to save offline",
+                    isMenuSheetOpen = false
+                )
+            }
+        }
+    }
+
+    fun loadOfflinePage(url: String, newTab: Boolean = false) {
+        viewModelScope.launch {
+            val offlinePage = repository.getOfflinePageByUrl(url)
+            if (offlinePage == null) {
+                _uiState.update { it.copy(snackbarNotice = "Saved page content not found") }
+                return@launch
+            }
+
+            if (newTab) {
+                val newTabId = "tab_${UUID.randomUUID()}"
+                val newTabObj = BrowserTab(
+                    id = newTabId,
+                    title = offlinePage.title,
+                    url = offlinePage.url,
+                    isOfflineCopy = true,
+                    offlineSavedAt = offlinePage.savedAt,
+                    offlineHtmlContent = offlinePage.htmlContent,
+                    isLoading = false,
+                    progress = 1f
+                )
+                _uiState.update { state ->
+                    state.copy(
+                        previousTabIndex = state.activeTabIndex,
+                        tabs = state.tabs + newTabObj,
+                        activeTabId = newTabId,
+                        isOfflinePagesScreenOpen = false,
+                        isMenuSheetOpen = false,
+                        isSearchScreenOpen = false,
+                        isBookmarksScreenOpen = false,
+                        isSettingsScreenOpen = false,
+                        isTabSwitcherOpen = false,
+                        isToolbarVisible = true,
+                        snackbarNotice = "Viewing offline copy saved on ${OfflineStorageUtil.formatSavedTimestamp(offlinePage.savedAt)}"
+                    )
+                }
+            } else {
+                val activeId = _uiState.value.activeTabId
+                _uiState.update { state ->
+                    state.copy(
+                        tabs = state.tabs.map { tab ->
+                            if (tab.id == activeId) {
+                                tab.copy(
+                                    title = offlinePage.title,
+                                    url = offlinePage.url,
+                                    isOfflineCopy = true,
+                                    offlineSavedAt = offlinePage.savedAt,
+                                    offlineHtmlContent = offlinePage.htmlContent,
+                                    isLoading = false,
+                                    progress = 1f
+                                )
+                            } else {
+                                tab
+                            }
+                        },
+                        isOfflinePagesScreenOpen = false,
+                        isMenuSheetOpen = false,
+                        isSearchScreenOpen = false,
+                        isBookmarksScreenOpen = false,
+                        isSettingsScreenOpen = false,
+                        isTabSwitcherOpen = false,
+                        isToolbarVisible = true,
+                        snackbarNotice = "Viewing offline copy saved on ${OfflineStorageUtil.formatSavedTimestamp(offlinePage.savedAt)}"
+                    )
+                }
+                val wv = webViewRegistry[activeId]
+                wv?.loadDataWithBaseURL(
+                    offlinePage.url,
+                    offlinePage.htmlContent,
+                    "text/html",
+                    "UTF-8",
+                    null
+                )
+            }
+        }
+    }
+
+    fun onPageLoadFailed(tabId: String, failedUrl: String) {
+        val trimmed = failedUrl.trim()
+        if (trimmed.isBlank() || trimmed == "about:blank" || trimmed.startsWith("apex://")) return
+
+        viewModelScope.launch {
+            val offlinePage = repository.getOfflinePageByUrl(trimmed)
+            if (offlinePage != null) {
+                _uiState.update { state ->
+                    state.copy(
+                        tabs = state.tabs.map { tab ->
+                            if (tab.id == tabId) {
+                                tab.copy(
+                                    title = offlinePage.title,
+                                    url = offlinePage.url,
+                                    isOfflineCopy = true,
+                                    offlineSavedAt = offlinePage.savedAt,
+                                    offlineHtmlContent = offlinePage.htmlContent,
+                                    isLoading = false,
+                                    progress = 1f
+                                )
+                            } else {
+                                tab
+                            }
+                        },
+                        snackbarNotice = "Network unavailable. Showing saved offline copy."
+                    )
+                }
+                val wv = webViewRegistry[tabId]
+                wv?.loadDataWithBaseURL(
+                    offlinePage.url,
+                    offlinePage.htmlContent,
+                    "text/html",
+                    "UTF-8",
+                    null
+                )
+            }
+        }
+    }
+
+    fun reloadOnline(tabId: String) {
+        val targetTab = _uiState.value.tabs.firstOrNull { it.id == tabId } ?: return
+        _uiState.update { state ->
+            state.copy(
+                tabs = state.tabs.map { tab ->
+                    if (tab.id == tabId) {
+                        tab.copy(
+                            isOfflineCopy = false,
+                            offlineSavedAt = null,
+                            offlineHtmlContent = null,
+                            isLoading = true,
+                            progress = 0.1f
+                        )
+                    } else {
+                        tab
+                    }
+                }
+            )
+        }
+        val wv = webViewRegistry[tabId]
+        if (wv != null) {
+            val builtIn = com.example.engine.BuiltInShowcasePages.resolveHtml(targetTab.url)
+            if (builtIn != null) {
+                wv.loadDataWithBaseURL(builtIn.first, builtIn.second, "text/html", "UTF-8", null)
+            } else {
+                wv.reload()
+            }
+        }
+    }
+
+    fun deleteOfflinePage(id: Long) {
+        viewModelScope.launch {
+            repository.deleteOfflinePage(id)
+            _uiState.update { it.copy(snackbarNotice = "Deleted offline page") }
+        }
+    }
+
+    fun clearAllOfflinePages() {
+        viewModelScope.launch {
+            repository.clearOfflinePages()
+            _uiState.update { it.copy(snackbarNotice = "Cleared all offline pages") }
+        }
+    }
+
+    fun setAutoSaveOfflinePagesEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            repository.setAutoSaveOfflinePagesEnabled(enabled)
+        }
     }
 
     fun reloadActiveTab() {
         val active = _uiState.value.activeTab
         if (active.isHomePage) return
+        if (active.isOfflineCopy) {
+            reloadOnline(active.id)
+            return
+        }
         val builtIn = com.example.engine.BuiltInShowcasePages.resolveHtml(active.url)
         val wv = webViewRegistry[active.id]
         if (wv != null) {
@@ -889,7 +1442,9 @@ class BrowserViewModel(
             it.copy(
                 isTabSwitcherOpen = open,
                 expandedGroupId = if (!open) null else it.expandedGroupId,
+                isMenuSheetOpen = if (open) false else it.isMenuSheetOpen,
                 isBookmarksScreenOpen = if (open) false else it.isBookmarksScreenOpen,
+                isOfflinePagesScreenOpen = if (open) false else it.isOfflinePagesScreenOpen,
                 isSettingsScreenOpen = if (open) false else it.isSettingsScreenOpen,
                 isSearchScreenOpen = if (open) false else it.isSearchScreenOpen,
                 isToolbarVisible = true
@@ -1185,7 +1740,11 @@ class BrowserViewModel(
                 override fun <T : ViewModel> create(modelClass: Class<T>): T {
                     val database = ApexDatabase.getInstance(appContext)
                     val prefsRepo = UserPreferencesRepository(appContext)
-                    val repo = BrowserRepository(database.apexDao(), prefsRepo)
+                    val sharedPrefs = appContext.getSharedPreferences(
+                        "apex_browser_storage",
+                        Context.MODE_PRIVATE
+                    )
+                    val repo = BrowserRepository(database.apexDao(), prefsRepo, sharedPrefs)
                     return BrowserViewModel(repository = repo) as T
                 }
             }

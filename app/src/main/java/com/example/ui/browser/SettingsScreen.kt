@@ -1,9 +1,12 @@
 package com.example.ui.browser
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.OutlinedCard
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -28,6 +31,8 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.outlined.CleaningServices
+import androidx.compose.material.icons.outlined.CloudDownload
+import androidx.compose.material.icons.outlined.CloudOff
 import androidx.compose.material.icons.outlined.ColorLens
 import androidx.compose.material.icons.outlined.DesktopWindows
 import androidx.compose.material.icons.outlined.Https
@@ -79,6 +84,8 @@ fun SettingsScreenOverlay(
     onToggleDynamicColor: (Boolean) -> Unit,
     onSelectSeedPalette: (SeedPalettePreset) -> Unit,
     onClearBrowsingData: () -> Unit,
+    onToggleAutoSaveOfflinePages: (Boolean) -> Unit = {},
+    onClearOfflinePages: () -> Unit = {},
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -139,7 +146,7 @@ fun SettingsScreenOverlay(
                     .widthIn(max = 760.dp)
                     .testTag("settings_scroll_list")
             ) {
-                // 1. Default Search Engine — Material 3 Grouped List
+                // 1. Default Search Engine — Inside Cards
                 item(key = "section_search_engine") {
                     MaterialGroupSectionHeader(
                         icon = Icons.Outlined.TravelExplore,
@@ -149,26 +156,41 @@ fun SettingsScreenOverlay(
                     Spacer(modifier = Modifier.height(10.dp))
 
                     Column(
-                        verticalArrangement = Arrangement.spacedBy(GroupedListSpacing),
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
                         modifier = Modifier
                             .fillMaxWidth()
                             .testTag("settings_search_engine_card")
                     ) {
-                        engines.forEachIndexed { index, engine ->
+                        engines.forEach { engine ->
                             val selected = engine == preferences.searchEngine
-                            MaterialGroupListItem(
-                                index = index,
-                                totalCount = engines.size,
-                                title = engine.displayName,
-                                subtitle = engine.description,
-                                containerColor = if (selected) {
-                                    MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.65f)
-                                } else {
-                                    MaterialTheme.colorScheme.surfaceContainerLow
-                                },
-                                role = Role.RadioButton,
+                            OutlinedCard(
                                 onClick = { onSelectSearchEngine(engine) },
-                                leadingContent = {
+                                shape = RoundedCornerShape(16.dp),
+                                colors = CardDefaults.outlinedCardColors(
+                                    containerColor = if (selected) {
+                                        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.28f)
+                                    } else {
+                                        MaterialTheme.colorScheme.surfaceContainerLow
+                                    }
+                                ),
+                                border = BorderStroke(
+                                    width = if (selected) 2.dp else 1.dp,
+                                    color = if (selected) {
+                                        MaterialTheme.colorScheme.primary
+                                    } else {
+                                        MaterialTheme.colorScheme.outlineVariant
+                                    }
+                                ),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .testTag("settings_engine_option_${engine.id}")
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 16.dp, vertical = 14.dp)
+                                ) {
                                     Surface(
                                         shape = RoundedCornerShape(12.dp),
                                         color = if (selected) {
@@ -176,29 +198,67 @@ fun SettingsScreenOverlay(
                                         } else {
                                             MaterialTheme.colorScheme.surfaceContainerHighest
                                         },
-                                        modifier = Modifier.size(width = 48.dp, height = 38.dp)
+                                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                                        modifier = Modifier.size(46.dp)
                                     ) {
                                         Box(contentAlignment = Alignment.Center) {
-                                            Text(
-                                                text = engine.shortBadge,
-                                                style = EmphasizedTypography.badgeCounter,
-                                                color = if (selected) {
-                                                    MaterialTheme.colorScheme.onPrimaryContainer
-                                                } else {
-                                                    MaterialTheme.colorScheme.onSurfaceVariant
-                                                }
+                                            SearchEngineLogo(
+                                                engine = engine,
+                                                size = 26.dp
                                             )
                                         }
                                     }
-                                },
-                                trailingContent = {
+
+                                    Spacer(modifier = Modifier.width(14.dp))
+
+                                    Column(
+                                        verticalArrangement = Arrangement.spacedBy(2.dp),
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            Text(
+                                                text = engine.displayName,
+                                                style = EmphasizedTypography.activeTabTitle,
+                                                color = MaterialTheme.colorScheme.onSurface
+                                            )
+                                            Surface(
+                                                shape = CircleShape,
+                                                color = if (selected) {
+                                                    MaterialTheme.colorScheme.primary
+                                                } else {
+                                                    MaterialTheme.colorScheme.surfaceVariant
+                                                }
+                                            ) {
+                                                Text(
+                                                    text = engine.shortBadge,
+                                                    style = EmphasizedTypography.badgeCounter,
+                                                    color = if (selected) {
+                                                        MaterialTheme.colorScheme.onPrimary
+                                                    } else {
+                                                        MaterialTheme.colorScheme.onSurfaceVariant
+                                                    },
+                                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                                )
+                                            }
+                                        }
+                                        Text(
+                                            text = engine.description,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+
+                                    Spacer(modifier = Modifier.width(8.dp))
+
                                     RadioButton(
                                         selected = selected,
                                         onClick = null
                                     )
-                                },
-                                modifier = Modifier.testTag("settings_engine_option_${engine.id}")
-                            )
+                                }
+                            }
                         }
                     }
                 }
@@ -262,7 +322,7 @@ fun SettingsScreenOverlay(
                     ) {
                         FormattedSettingsSwitchItem(
                             index = 0,
-                            totalCount = 2,
+                            totalCount = 3,
                             icon = Icons.Outlined.Speed,
                             title = stringResource(R.string.settings_preload_title),
                             description = stringResource(R.string.settings_preload_desc),
@@ -272,13 +332,23 @@ fun SettingsScreenOverlay(
                         )
                         FormattedSettingsSwitchItem(
                             index = 1,
-                            totalCount = 2,
+                            totalCount = 3,
                             icon = Icons.Outlined.DesktopWindows,
                             title = stringResource(R.string.settings_desktop_title),
                             description = stringResource(R.string.settings_desktop_desc),
                             checked = preferences.desktopViewportEnabled,
                             onCheckedChange = onToggleDesktopViewport,
                             tag = "settings_switch_desktop"
+                        )
+                        FormattedSettingsSwitchItem(
+                            index = 2,
+                            totalCount = 3,
+                            icon = Icons.Outlined.CloudDownload,
+                            title = stringResource(R.string.settings_offline_cache_title),
+                            description = stringResource(R.string.settings_offline_cache_desc),
+                            checked = preferences.autoSaveOfflinePagesEnabled,
+                            onCheckedChange = onToggleAutoSaveOfflinePages,
+                            tag = "settings_switch_offline_cache"
                         )
                     }
                 }
@@ -398,66 +468,134 @@ fun SettingsScreenOverlay(
                     )
                     Spacer(modifier = Modifier.height(10.dp))
 
-                    val singleShape = groupedListItemShape(index = 0, totalCount = 1)
-                    Surface(
-                        shape = singleShape,
-                        color = MaterialTheme.colorScheme.surfaceContainerLow,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(singleShape)
-                            .clickable(
-                                role = Role.Button,
-                                onClick = onClearBrowsingData
-                            )
-                            .testTag("settings_clear_data_button")
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(GroupedListSpacing),
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
+                        val shape0 = groupedListItemShape(index = 0, totalCount = 2)
+                        Surface(
+                            shape = shape0,
+                            color = MaterialTheme.colorScheme.surfaceContainerLow,
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .defaultMinSize(minHeight = 68.dp)
-                                .padding(horizontal = 16.dp, vertical = 14.dp)
+                                .clip(shape0)
+                                .clickable(
+                                    role = Role.Button,
+                                    onClick = onClearBrowsingData
+                                )
+                                .testTag("settings_clear_data_button")
                         ) {
-                            Surface(
-                                shape = RoundedCornerShape(12.dp),
-                                color = MaterialTheme.colorScheme.errorContainer,
-                                modifier = Modifier.size(40.dp)
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .defaultMinSize(minHeight = 68.dp)
+                                    .padding(horizontal = 16.dp, vertical = 14.dp)
                             ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Icon(
-                                        imageVector = Icons.Outlined.CleaningServices,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.onErrorContainer,
-                                        modifier = Modifier.size(20.dp)
+                                Surface(
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = MaterialTheme.colorScheme.errorContainer,
+                                    modifier = Modifier.size(40.dp)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(
+                                            imageVector = Icons.Outlined.CleaningServices,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.onErrorContainer,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.width(14.dp))
+
+                                Column(
+                                    verticalArrangement = Arrangement.spacedBy(2.dp),
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Text(
+                                        text = stringResource(R.string.settings_clear_data_button),
+                                        style = EmphasizedTypography.activeTabTitle,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Text(
+                                        text = "Removes saved search queries and resets local counters",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 }
+
+                                Spacer(modifier = Modifier.width(8.dp))
+
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
                             }
+                        }
 
-                            Spacer(modifier = Modifier.width(14.dp))
-
-                            Column(
-                                verticalArrangement = Arrangement.spacedBy(2.dp),
-                                modifier = Modifier.weight(1f)
+                        val shape1 = groupedListItemShape(index = 1, totalCount = 2)
+                        Surface(
+                            shape = shape1,
+                            color = MaterialTheme.colorScheme.surfaceContainerLow,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(shape1)
+                                .clickable(
+                                    role = Role.Button,
+                                    onClick = onClearOfflinePages
+                                )
+                                .testTag("settings_clear_offline_pages_button")
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .defaultMinSize(minHeight = 68.dp)
+                                    .padding(horizontal = 16.dp, vertical = 14.dp)
                             ) {
-                                Text(
-                                    text = stringResource(R.string.settings_clear_data_button),
-                                    style = EmphasizedTypography.activeTabTitle,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                                Text(
-                                    text = "Removes saved search queries and resets local counters",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                Surface(
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = MaterialTheme.colorScheme.errorContainer,
+                                    modifier = Modifier.size(40.dp)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(
+                                            imageVector = Icons.Outlined.CloudOff,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.onErrorContainer,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.width(14.dp))
+
+                                Column(
+                                    verticalArrangement = Arrangement.spacedBy(2.dp),
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Text(
+                                        text = stringResource(R.string.clear_offline_pages),
+                                        style = EmphasizedTypography.activeTabTitle,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Text(
+                                        text = "Removes all saved copies of visited webpages from local storage",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.width(8.dp))
+
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
-
-                            Spacer(modifier = Modifier.width(8.dp))
-
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
                         }
                     }
                 }

@@ -40,6 +40,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CreateNewFolder
 import androidx.compose.material.icons.filled.FolderCopy
 import androidx.compose.material.icons.filled.Public
+import androidx.compose.material.icons.outlined.CallSplit
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Layers
 import androidx.compose.material3.Card
@@ -72,18 +73,22 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import com.example.R
 import com.example.ui.theme.ApexMotion
 import com.example.ui.theme.EmphasizedTypography
 import com.example.ui.theme.rememberMorphingCornerShape
+import com.example.ui.theme.resolveTonalColors
 import com.example.ui.viewmodel.BrowserTab
 import com.example.ui.viewmodel.TabGridEntry
+import kotlin.math.roundToInt
 
 private enum class TabSwitcherFilter {
     ALL_TABS,
@@ -233,10 +238,13 @@ fun DraggableTabGridOverlay(
     onSelectTab: (String) -> Unit,
     onCloseTab: (String) -> Unit,
     onCloseGroup: (String) -> Unit,
+    onEditGroup: (String) -> Unit,
     onMergeEntries: (String, String) -> Unit,
+    onMoveGroupedTabToTarget: (String, String?) -> Unit,
     onOpenGroup: (String?) -> Unit,
     onAddTabToGroup: (String) -> Unit,
     onUngroupTab: (String) -> Unit,
+    onCycleTabColor: (String) -> Unit,
     onNewTab: () -> Unit,
     onCreateGroup: () -> Unit,
     onResetAllTabs: () -> Unit,
@@ -263,9 +271,18 @@ fun DraggableTabGridOverlay(
     }
 
     val itemBounds = remember { mutableStateMapOf<String, Rect>() }
+    var rootPositionInRoot by remember { mutableStateOf(Offset.Zero) }
+    var ungroupDropBannerBounds by remember { mutableStateOf<Rect?>(null) }
+
+    // Whole-card dragging (single tab or group card)
     var draggedKey by remember { mutableStateOf<String?>(null) }
     var dragTranslation by remember { mutableStateOf(Offset.Zero) }
     var hoveredTargetKey by remember { mutableStateOf<String?>(null) }
+
+    // Dragging an individual member tab out of a GroupTabGridCard
+    var draggedMemberTab by remember { mutableStateOf<BrowserTab?>(null) }
+    var draggedMemberStartRect by remember { mutableStateOf<Rect?>(null) }
+    var draggedMemberOffset by remember { mutableStateOf(Offset.Zero) }
 
     fun updateHoverTarget(key: String, deltaTotal: Offset) {
         val originRect = itemBounds[key] ?: return
@@ -284,6 +301,44 @@ fun DraggableTabGridOverlay(
         }
         draggedKey = null
         dragTranslation = Offset.Zero
+        hoveredTargetKey = null
+    }
+
+    fun updateMemberHoverTarget(memberTab: BrowserTab, startRect: Rect, deltaTotal: Offset) {
+        val currentCenter = startRect.center + deltaTotal
+        val sourceGroupKey = memberTab.groupId?.let { "group_$it" }
+        val inUngroupBanner = ungroupDropBannerBounds?.contains(currentCenter) == true
+        if (inUngroupBanner) {
+            hoveredTargetKey = null
+            return
+        }
+        val hitOtherKey = itemBounds.entries.firstOrNull { (otherKey, rect) ->
+            otherKey != sourceGroupKey && rect.contains(currentCenter)
+        }?.key
+        hoveredTargetKey = hitOtherKey
+    }
+
+    fun finishMemberDrag() {
+        val member = draggedMemberTab
+        val startRect = draggedMemberStartRect
+        if (member != null && startRect != null) {
+            val dropCenter = startRect.center + draggedMemberOffset
+            val sourceGroupKey = member.groupId?.let { "group_$it" }
+            val sourceGroupRect = sourceGroupKey?.let { itemBounds[it] }
+            val inUngroupBanner = ungroupDropBannerBounds?.contains(dropCenter) == true
+
+            if (inUngroupBanner) {
+                onMoveGroupedTabToTarget(member.id, null)
+            } else if (hoveredTargetKey != null && hoveredTargetKey != sourceGroupKey) {
+                onMoveGroupedTabToTarget(member.id, hoveredTargetKey)
+            } else if (sourceGroupRect == null || !sourceGroupRect.contains(dropCenter)) {
+                // Dropped outside the source group card -> remove from group!
+                onMoveGroupedTabToTarget(member.id, null)
+            }
+        }
+        draggedMemberTab = null
+        draggedMemberStartRect = null
+        draggedMemberOffset = Offset.Zero
         hoveredTargetKey = null
     }
 
@@ -336,6 +391,9 @@ fun DraggableTabGridOverlay(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
+                .onGloballyPositioned { coords ->
+                    rootPositionInRoot = coords.positionInRoot()
+                }
         ) {
             if (visibleEntries.isEmpty() && switcherFilter == TabSwitcherFilter.GROUPS_ONLY) {
                 Box(
@@ -398,7 +456,7 @@ fun DraggableTabGridOverlay(
                     contentPadding = PaddingValues(
                         start = 16.dp,
                         end = 16.dp,
-                        top = 8.dp,
+                        top = if (draggedMemberTab != null) 66.dp else 8.dp,
                         bottom = 120.dp
                     ),
                     modifier = Modifier
@@ -471,6 +529,7 @@ fun DraggableTabGridOverlay(
                                     isDropTarget = isDropTarget,
                                     onClick = { onSelectTab(entry.tab.id) },
                                     onClose = { onCloseTab(entry.tab.id) },
+                                    onCycleTabColor = { onCycleTabColor(entry.tab.id) },
                                     onImmediateDragStart = {
                                         draggedKey = entry.gridKey
                                         dragTranslation = Offset.Zero
@@ -487,7 +546,9 @@ fun DraggableTabGridOverlay(
                                     entry = entry,
                                     activeTabId = activeTabId,
                                     isDropTarget = isDropTarget,
+                                    draggedMemberTabId = draggedMemberTab?.id,
                                     onOpenGroup = { onOpenGroup(entry.group.id) },
+                                    onEditGroup = { onEditGroup(entry.group.id) },
                                     onCloseGroup = { onCloseGroup(entry.group.id) },
                                     onImmediateDragStart = {
                                         draggedKey = entry.gridKey
@@ -498,10 +559,119 @@ fun DraggableTabGridOverlay(
                                         dragTranslation += delta
                                         updateHoverTarget(entry.gridKey, dragTranslation)
                                     },
-                                    onImmediateDragEnd = { finishDrag() }
+                                    onImmediateDragEnd = { finishDrag() },
+                                    onMemberTabDragStart = { memberTab, rect ->
+                                        draggedMemberTab = memberTab
+                                        draggedMemberStartRect = rect
+                                        draggedMemberOffset = Offset.Zero
+                                        hoveredTargetKey = null
+                                    },
+                                    onMemberTabDrag = { delta ->
+                                        draggedMemberOffset += delta
+                                        val member = draggedMemberTab
+                                        val start = draggedMemberStartRect
+                                        if (member != null && start != null) {
+                                            updateMemberHoverTarget(member, start, draggedMemberOffset)
+                                        }
+                                    },
+                                    onMemberTabDragEnd = { finishMemberDrag() }
                                 )
                             }
                         }
+                    }
+                }
+            }
+
+            // Drag-to-Remove-From-Group Banner when dragging a mini-tab out of a Group Card
+            AnimatedVisibility(
+                visible = draggedMemberTab != null,
+                enter = fadeIn(ApexMotion.effectsSpring()) + scaleIn(initialScale = 0.92f, animationSpec = ApexMotion.spatialSpring()),
+                exit = fadeOut(ApexMotion.effectsSpring()) + scaleOut(targetScale = 0.92f, animationSpec = ApexMotion.spatialSpring()),
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(horizontal = 16.dp, vertical = 6.dp)
+                    .zIndex(50f)
+            ) {
+                Surface(
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.tertiaryContainer,
+                    border = BorderStroke(2.dp, MaterialTheme.colorScheme.tertiary),
+                    tonalElevation = 6.dp,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .widthIn(max = 520.dp)
+                        .onGloballyPositioned { coords ->
+                            ungroupDropBannerBounds = coords.boundsInRoot()
+                        }
+                        .testTag("grid_ungroup_drop_banner")
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center,
+                        modifier = Modifier.padding(horizontal = 18.dp, vertical = 12.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.CallSplit,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onTertiaryContainer,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = stringResource(R.string.tab_group_drop_ungroup_hint),
+                            style = EmphasizedTypography.activeTabTitle,
+                            color = MaterialTheme.colorScheme.onTertiaryContainer
+                        )
+                    }
+                }
+            }
+
+            // Floating Ghost Pill while dragging a grouped tab out of its Group Card
+            val activeDraggedMember = draggedMemberTab
+            val activeMemberStartRect = draggedMemberStartRect
+            if (activeDraggedMember != null && activeMemberStartRect != null) {
+                val ghostTopLeft = activeMemberStartRect.topLeft - rootPositionInRoot + draggedMemberOffset
+                val ghostPalette = activeDraggedMember.tabColor?.resolveTonalColors()
+                Surface(
+                    shape = CircleShape,
+                    color = ghostPalette?.container ?: MaterialTheme.colorScheme.primaryContainer,
+                    border = BorderStroke(
+                        2.dp,
+                        ghostPalette?.accent ?: MaterialTheme.colorScheme.primary
+                    ),
+                    shadowElevation = 8.dp,
+                    modifier = Modifier
+                        .zIndex(65f)
+                        .graphicsLayer {
+                            translationX = ghostTopLeft.x
+                            translationY = ghostTopLeft.y
+                            scaleX = 1.06f
+                            scaleY = 1.06f
+                        }
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)
+                    ) {
+                        Icon(
+                            imageVector = if (activeDraggedMember.isHomePage) {
+                                Icons.Outlined.Home
+                            } else {
+                                Icons.Filled.Public
+                            },
+                            contentDescription = null,
+                            tint = ghostPalette?.accent ?: MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Text(
+                            text = activeDraggedMember.title,
+                            style = EmphasizedTypography.activeTabTitle,
+                            color = ghostPalette?.onContainer ?: MaterialTheme.colorScheme.onPrimaryContainer,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.widthIn(max = 150.dp)
+                        )
                     }
                 }
             }
@@ -610,8 +780,10 @@ fun DraggableTabGridOverlay(
                         groupEntry = expandedGroupEntry,
                         activeTabId = activeTabId,
                         onSelectTab = onSelectTab,
+                        onEditGroup = { onEditGroup(expandedGroupEntry.group.id) },
                         onAddTabToGroup = { onAddTabToGroup(expandedGroupEntry.group.id) },
                         onUngroupTab = onUngroupTab,
+                        onCycleTabColor = onCycleTabColor,
                         onCloseTab = onCloseTab,
                         onDismiss = { onOpenGroup(null) }
                     )

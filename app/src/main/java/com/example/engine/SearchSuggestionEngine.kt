@@ -128,7 +128,7 @@ class SearchSuggestionEngine {
                             SearchSuggestionItem(
                                 id = "${engine.id}_obj_$i",
                                 title = phrase,
-                                subtitle = "Search on ${engine.displayName}",
+                                subtitle = "",
                                 submitValue = phrase,
                                 fillText = phrase,
                                 engineBadge = engine.shortBadge,
@@ -152,7 +152,7 @@ class SearchSuggestionEngine {
                     SearchSuggestionItem(
                         id = "${engine.id}_exact",
                         title = originalQuery,
-                        subtitle = "Search ${engine.displayName} for \"$originalQuery\"",
+                        subtitle = "",
                         submitValue = originalQuery,
                         fillText = originalQuery,
                         engineBadge = engine.shortBadge,
@@ -171,7 +171,7 @@ class SearchSuggestionEngine {
                 val subtitle = when {
                     desc.isNotEmpty() -> desc
                     engine == SearchEngineOption.WIKIPEDIA && directUrl.isNotEmpty() -> directUrl
-                    else -> "${engine.displayName} suggestion"
+                    else -> ""
                 }
 
                 val submitTarget = if (engine == SearchEngineOption.WIKIPEDIA && directUrl.startsWith("https://")) {
@@ -208,7 +208,7 @@ class SearchSuggestionEngine {
             SearchSuggestionItem(
                 id = "fallback_${engine.id}_$idx",
                 title = candidate,
-                subtitle = "Search on ${engine.displayName}",
+                subtitle = "",
                 submitValue = candidate,
                 fillText = candidate,
                 engineBadge = engine.shortBadge,
