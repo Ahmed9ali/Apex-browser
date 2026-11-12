@@ -70,8 +70,11 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.example.R
 import com.example.ui.theme.ApexMotion
 import com.example.ui.theme.EmphasizedTypography
@@ -322,29 +325,15 @@ fun BraveBottomNavigationBar(
             modifier = Modifier.testTag("nav_search_button")
         )
 
-        // 4. Tabs
+        // 4. Tabs with square count icon (Brave / Chrome style)
         NavigationBarItem(
             selected = isTabSwitcherOpen,
             onClick = onTabsClick,
             icon = {
-                BadgedBox(
-                    badge = {
-                        Badge(
-                            containerColor = MaterialTheme.colorScheme.primary,
-                            contentColor = MaterialTheme.colorScheme.onPrimary
-                        ) {
-                            Text(
-                                text = openTabCount.toString(),
-                                style = EmphasizedTypography.badgeCounter
-                            )
-                        }
-                    }
-                ) {
-                    Icon(
-                        imageVector = Icons.Outlined.Layers,
-                        contentDescription = stringResource(R.string.nav_tabs)
-                    )
-                }
+                SquareTabCounterIcon(
+                    count = openTabCount,
+                    isSelected = isTabSwitcherOpen
+                )
             },
             label = { Text(stringResource(R.string.nav_tabs), maxLines = 1) },
             modifier = Modifier.testTag("nav_tabs_button")
@@ -363,6 +352,54 @@ fun BraveBottomNavigationBar(
             label = { Text(stringResource(R.string.nav_menu), maxLines = 1) },
             modifier = Modifier.testTag("nav_menu_button")
         )
+    }
+}
+
+/**
+ * Brave & Chrome style square tab counter icon with rounded corners, stroke border,
+ * and the open tabs count rendered inside the square.
+ */
+@Composable
+fun SquareTabCounterIcon(
+    count: Int,
+    isSelected: Boolean = false,
+    modifier: Modifier = Modifier
+) {
+    val borderColor = if (isSelected) {
+        MaterialTheme.colorScheme.primary
+    } else {
+        MaterialTheme.colorScheme.onSurfaceVariant
+    }
+    val displayText = when {
+        count > 99 -> ":D"
+        count <= 0 -> "1"
+        else -> count.toString()
+    }
+
+    Surface(
+        shape = RoundedCornerShape(6.dp),
+        color = if (isSelected) {
+            MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+        } else {
+            MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.55f)
+        },
+        border = BorderStroke(2.dp, borderColor),
+        modifier = modifier
+            .size(22.dp)
+            .testTag("square_tab_counter_icon")
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Text(
+                text = displayText,
+                style = MaterialTheme.typography.labelSmall.copy(
+                    fontWeight = FontWeight.Bold,
+                    fontSize = if (displayText.length >= 2) 10.sp else 12.sp,
+                    lineHeight = 12.sp,
+                    textAlign = TextAlign.Center
+                ),
+                color = borderColor
+            )
+        }
     }
 }
 

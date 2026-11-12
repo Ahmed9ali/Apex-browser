@@ -24,21 +24,25 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.Image
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DragIndicator
 import androidx.compose.material.icons.filled.FolderCopy
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.outlined.CallSplit
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Home
+import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Palette
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -54,8 +58,11 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.testTag
@@ -63,8 +70,10 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import com.example.R
+import com.example.data.preferences.SearchEngineOption
 import com.example.ui.theme.ApexMotion
 import com.example.ui.theme.EmphasizedTypography
 import com.example.ui.theme.TabGroupTonalColors
@@ -123,9 +132,15 @@ internal fun SingleTabGridCard(
     val borderColor = when {
         isDropTarget -> MaterialTheme.colorScheme.tertiary
         customTabPalette != null && isSelected -> customTabPalette.accent
-        isSelected -> MaterialTheme.colorScheme.primary
+        isSelected -> Color(0xFFFF5500) // Signature Brave highlight orange on edges
         customTabPalette != null -> customTabPalette.border.copy(alpha = 0.7f)
-        else -> MaterialTheme.colorScheme.outlineVariant
+        else -> MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f)
+    }
+
+    val borderWidth = when {
+        isDropTarget -> 3.dp
+        isSelected -> 2.5.dp // Distinct, prominent edge highlight like Brave
+        else -> 1.dp
     }
 
     Card(
@@ -135,12 +150,15 @@ internal fun SingleTabGridCard(
             contentColor = contentColor
         ),
         border = BorderStroke(
-            width = if (isDropTarget || isSelected) 2.dp else 1.dp,
+            width = borderWidth,
             color = borderColor
+        ),
+        elevation = CardDefaults.cardElevation(
+            defaultElevation = if (isSelected) 4.dp else 1.dp
         ),
         modifier = Modifier
             .fillMaxWidth()
-            .height(194.dp)
+            .height(238.dp)
             .clickable(onClick = onClick)
             .testTag("grid_tab_card_${tab.id}")
     ) {
@@ -148,8 +166,9 @@ internal fun SingleTabGridCard(
             verticalArrangement = Arrangement.SpaceBetween,
             modifier = Modifier
                 .fillMaxSize()
-                .padding(12.dp)
+                .padding(10.dp)
         ) {
+            // Header: Drag handle, site icon, title, close button
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth()
@@ -157,7 +176,7 @@ internal fun SingleTabGridCard(
                 Box(
                     contentAlignment = Alignment.Center,
                     modifier = Modifier
-                        .size(28.dp)
+                        .size(26.dp)
                         .pointerInput(tab.id) {
                             detectDragGestures(
                                 onDragStart = { onImmediateDragStart() },
@@ -175,19 +194,36 @@ internal fun SingleTabGridCard(
                         imageVector = Icons.Filled.DragIndicator,
                         contentDescription = stringResource(R.string.cd_drag_tab),
                         tint = contentColor.copy(alpha = 0.72f),
-                        modifier = Modifier.size(18.dp)
+                        modifier = Modifier.size(16.dp)
                     )
                 }
 
-                if (customTabPalette != null) {
-                    Box(
-                        modifier = Modifier
-                            .size(9.dp)
-                            .clip(CircleShape)
-                            .background(customTabPalette.accent)
+                Spacer(modifier = Modifier.width(2.dp))
+
+                // Favicon / Engine logo
+                if (tab.isHomePage) {
+                    Icon(
+                        imageVector = Icons.Outlined.Home,
+                        contentDescription = null,
+                        tint = customTabPalette?.accent ?: MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(16.dp)
                     )
-                    Spacer(modifier = Modifier.width(5.dp))
+                } else if (tab.url.contains("google", ignoreCase = true)) {
+                    SearchEngineLogo(SearchEngineOption.GOOGLE, size = 16.dp)
+                } else if (tab.url.contains("duckduckgo", ignoreCase = true)) {
+                    SearchEngineLogo(SearchEngineOption.DUCKDUCKGO, size = 16.dp)
+                } else if (tab.url.contains("brave", ignoreCase = true)) {
+                    SearchEngineLogo(SearchEngineOption.BRAVE, size = 16.dp)
+                } else {
+                    Icon(
+                        imageVector = Icons.Filled.Public,
+                        contentDescription = null,
+                        tint = customTabPalette?.accent ?: MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(16.dp)
+                    )
                 }
+
+                Spacer(modifier = Modifier.width(6.dp))
 
                 Text(
                     text = tab.title,
@@ -195,9 +231,7 @@ internal fun SingleTabGridCard(
                     color = contentColor,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(horizontal = 4.dp)
+                    modifier = Modifier.weight(1f)
                 )
 
                 IconButton(
@@ -215,22 +249,19 @@ internal fun SingleTabGridCard(
                 }
             }
 
+            // Web Activity & Preview Canvas
             Surface(
-                shape = MaterialTheme.shapes.medium,
-                color = MaterialTheme.colorScheme.surfaceContainerLowest.copy(alpha = 0.76f),
+                shape = RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.surfaceContainerLowest,
+                border = BorderStroke(0.8.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f)
-                    .padding(vertical = 8.dp)
+                    .padding(vertical = 6.dp)
+                    .clip(RoundedCornerShape(12.dp))
             ) {
-                Column(
-                    verticalArrangement = Arrangement.Center,
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(10.dp)
-                ) {
-                    if (isDropTarget) {
+                if (isDropTarget) {
+                    Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
                         Surface(
                             shape = MaterialTheme.shapes.large,
                             color = MaterialTheme.colorScheme.tertiary
@@ -239,42 +270,242 @@ internal fun SingleTabGridCard(
                                 text = stringResource(R.string.tab_group_drop_hint),
                                 style = EmphasizedTypography.badgeCounter,
                                 color = MaterialTheme.colorScheme.onTertiary,
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
                             )
                         }
-                    } else {
-                        Icon(
-                            imageVector = if (tab.isHomePage) Icons.Outlined.Home else Icons.Filled.Public,
-                            contentDescription = null,
-                            tint = customTabPalette?.accent ?: MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(28.dp)
-                        )
+                    }
+                } else if (tab.isHomePage) {
+                    // Home Start Page Mockup
+                    Column(
+                        verticalArrangement = Arrangement.Center,
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(8.dp)
+                    ) {
+                        Surface(
+                            shape = CircleShape,
+                            color = MaterialTheme.colorScheme.primaryContainer,
+                            modifier = Modifier.size(38.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Outlined.Home,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)),
+                            modifier = Modifier
+                                .fillMaxWidth(0.92f)
+                                .height(24.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(horizontal = 8.dp)
+                            ) {
+                                SearchEngineLogo(SearchEngineOption.DUCKDUCKGO, size = 12.dp)
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "Search or type URL",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(
-                            text = if (tab.isHomePage) "Home" else tab.url,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
+                            text = "Start Page",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
+                    }
+                } else if (tab.previewThumbnail != null) {
+                    // Actual captured Web Page Snapshot with web status overlay
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        Image(
+                            bitmap = tab.previewThumbnail.asImageBitmap(),
+                            contentDescription = tab.title,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                        // Top domain badge
+                        Surface(
+                            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.88f),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .align(Alignment.TopCenter)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
+                            ) {
+                                Icon(
+                                    imageVector = if (tab.isHttps) Icons.Filled.Lock else Icons.Outlined.Info,
+                                    contentDescription = null,
+                                    tint = if (tab.isHttps) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(11.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = tab.url.removePrefix("https://").removePrefix("http://"),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+                    }
+                } else {
+                    // Rich Web Activity View with domain, HTTPS, shields, and activity status
+                    val cleanHost = remember(tab.url) {
+                        tab.url.removePrefix("https://").removePrefix("http://").substringBefore("/")
+                    }
+                    Column(
+                        verticalArrangement = Arrangement.SpaceBetween,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(8.dp)
+                    ) {
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(24.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(horizontal = 6.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.Lock,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.tertiary,
+                                    modifier = Modifier.size(11.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = cleanHost.ifBlank { tab.url },
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+
+                        // Simulated web content wireframe lines
+                        Column(
+                            verticalArrangement = Arrangement.spacedBy(4.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 4.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth(0.85f)
+                                    .height(10.dp)
+                                    .clip(RoundedCornerShape(3.dp))
+                                    .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.22f))
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth(0.95f)
+                                    .height(6.dp)
+                                    .clip(RoundedCornerShape(2.dp))
+                                    .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.14f))
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth(0.72f)
+                                    .height(6.dp)
+                                    .clip(RoundedCornerShape(2.dp))
+                                    .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.14f))
+                            )
+                        }
+
+                        // Web Activity Indicator Chip
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            if (tab.isLoading) {
+                                LinearProgressIndicator(
+                                    progress = { tab.progress.coerceIn(0.1f, 1f) },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(3.dp),
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            } else {
+                                Surface(
+                                    shape = RoundedCornerShape(6.dp),
+                                    color = if (tab.blockedCountOnPage > 0) {
+                                        MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.65f)
+                                    } else {
+                                        MaterialTheme.colorScheme.surfaceContainerHigh
+                                    }
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(6.dp)
+                                                .clip(CircleShape)
+                                                .background(
+                                                    if (tab.blockedCountOnPage > 0) {
+                                                        MaterialTheme.colorScheme.tertiary
+                                                    } else {
+                                                        MaterialTheme.colorScheme.primary
+                                                    }
+                                                )
+                                        )
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text(
+                                            text = if (tab.blockedCountOnPage > 0) {
+                                                "Shield: ${tab.blockedCountOnPage} blocked"
+                                            } else {
+                                                cleanHost.ifBlank { "Web Page" }
+                                            },
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
 
+            // Bottom bar: Activity badge + Tab color swatch
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                if (isSelected) {
+                if (tab.blockedCountOnPage > 0) {
                     Surface(
-                        shape = MaterialTheme.shapes.extraSmall,
-                        color = customTabPalette?.accent ?: MaterialTheme.colorScheme.primary
+                        shape = RoundedCornerShape(4.dp),
+                        color = MaterialTheme.colorScheme.tertiaryContainer
                     ) {
                         Text(
-                            text = "ACTIVE",
+                            text = "${tab.blockedCountOnPage} BLOCKED",
                             style = EmphasizedTypography.badgeCounter,
-                            color = customTabPalette?.onAccent ?: MaterialTheme.colorScheme.onPrimary,
+                            color = MaterialTheme.colorScheme.onTertiaryContainer,
                             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                         )
                     }
@@ -305,21 +536,12 @@ internal fun SingleTabGridCard(
                         .testTag("cycle_tab_color_${tab.id}")
                 ) {
                     Box(contentAlignment = Alignment.Center) {
-                        if (customTabPalette != null) {
-                            Box(
-                                modifier = Modifier
-                                    .size(11.dp)
-                                    .clip(CircleShape)
-                                    .background(customTabPalette.accent)
-                            )
-                        } else {
-                            Icon(
-                                imageVector = Icons.Outlined.Palette,
-                                contentDescription = stringResource(R.string.cd_cycle_tab_color),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(13.dp)
-                            )
-                        }
+                        Icon(
+                            imageVector = Icons.Outlined.Palette,
+                            contentDescription = stringResource(R.string.cd_cycle_tab_color),
+                            tint = customTabPalette?.accent ?: contentColor.copy(alpha = 0.8f),
+                            modifier = Modifier.size(13.dp)
+                        )
                     }
                 }
             }
@@ -385,7 +607,7 @@ internal fun GroupTabGridCard(
         ),
         modifier = Modifier
             .fillMaxWidth()
-            .height(194.dp)
+            .height(238.dp)
             .clickable(onClick = onOpenGroup)
             .testTag("grid_group_card_${entry.group.id}")
     ) {

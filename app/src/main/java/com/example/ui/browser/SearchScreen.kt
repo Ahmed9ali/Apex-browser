@@ -181,11 +181,9 @@ fun SearchScreenOverlay(
                                         .fillMaxSize()
                                         .padding(horizontal = 14.dp)
                                 ) {
-                                    Icon(
-                                        imageVector = Icons.Filled.Search,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.size(18.dp)
+                                    SearchEngineLogo(
+                                        engine = selectedEngine,
+                                        size = 20.dp
                                     )
 
                                     Spacer(modifier = Modifier.width(10.dp))

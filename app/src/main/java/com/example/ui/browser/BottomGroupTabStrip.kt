@@ -58,6 +58,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -65,6 +66,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.R
+import com.example.data.preferences.SearchEngineOption
 import com.example.ui.theme.ApexMotion
 import com.example.ui.theme.EmphasizedTypography
 import com.example.ui.theme.TabGroupColorOption
@@ -111,13 +113,13 @@ fun BottomGroupTabStrip(
                     .fillMaxWidth()
                     .padding(horizontal = 10.dp, vertical = 7.dp)
             ) {
-                // Colored Group Pill (Tap to Rename & Change Color)
+                // Group Icon Button (Shows group color/folder icon, tap to edit group; no text)
                 Surface(
                     shape = CircleShape,
                     color = groupPalette.container,
-                    border = BorderStroke(1.dp, groupPalette.border),
+                    border = BorderStroke(1.5.dp, groupPalette.border),
                     modifier = Modifier
-                        .height(38.dp)
+                        .size(38.dp)
                         .clip(CircleShape)
                         .clickable(
                             role = Role.Button,
@@ -125,30 +127,12 @@ fun BottomGroupTabStrip(
                         )
                         .testTag("bottom_group_strip_edit_pill")
                 ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        modifier = Modifier.padding(horizontal = 12.dp)
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(10.dp)
-                                .clip(CircleShape)
-                                .background(groupPalette.accent)
-                        )
-                        Text(
-                            text = group.title,
-                            style = EmphasizedTypography.badgeCounter,
-                            color = groupPalette.onContainer,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.widthIn(max = 88.dp)
-                        )
+                    Box(contentAlignment = Alignment.Center) {
                         Icon(
-                            imageVector = Icons.Outlined.Edit,
+                            imageVector = Icons.Filled.FolderCopy,
                             contentDescription = stringResource(R.string.cd_edit_group),
-                            tint = groupPalette.onContainer.copy(alpha = 0.8f),
-                            modifier = Modifier.size(13.dp)
+                            tint = groupPalette.accent,
+                            modifier = Modifier.size(18.dp)
                         )
                     }
                 }
@@ -156,13 +140,13 @@ fun BottomGroupTabStrip(
                 Spacer(modifier = Modifier.width(8.dp))
                 VerticalDivider(
                     modifier = Modifier.height(22.dp),
-                    color = MaterialTheme.colorScheme.outlineVariant
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
                 )
                 Spacer(modifier = Modifier.width(8.dp))
 
-                // All Tabs in Active Group (Switchable + Deletable)
+                // All Tabs in Active Group (Icon-only, active tab edges highlighted like Brave)
                 LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     contentPadding = PaddingValues(end = 4.dp),
                     modifier = Modifier
@@ -175,83 +159,52 @@ fun BottomGroupTabStrip(
                     ) { tab ->
                         val isSelected = tab.id == activeTabId
                         val tabPalette = (tab.tabColor ?: group.colorOption).resolveTonalColors()
-                        val chipShape = rememberMorphingCornerShape(
-                            targetRadius = if (isSelected) 20.dp else 12.dp,
-                            label = "BottomGroupTabShape_${tab.id}"
-                        )
+                        val chipShape = RoundedCornerShape(10.dp)
                         val chipBg by animateColorAsState(
                             targetValue = if (isSelected) {
                                 tabPalette.container
                             } else {
-                                MaterialTheme.colorScheme.surfaceContainerHighest
+                                MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.6f)
                             },
                             animationSpec = ApexMotion.effectsSpec(),
                             label = "BottomGroupTabBg_${tab.id}"
-                        )
-                        val chipFg by animateColorAsState(
-                            targetValue = if (isSelected) {
-                                tabPalette.onContainer
-                            } else {
-                                MaterialTheme.colorScheme.onSurfaceVariant
-                            },
-                            animationSpec = ApexMotion.effectsSpec(),
-                            label = "BottomGroupTabFg_${tab.id}"
                         )
 
                         Surface(
                             shape = chipShape,
                             color = chipBg,
                             border = if (isSelected) {
-                                BorderStroke(1.5.dp, tabPalette.accent)
+                                BorderStroke(2.dp, tabPalette.accent)
                             } else {
-                                BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                                BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
                             },
                             modifier = Modifier
-                                .height(38.dp)
+                                .size(38.dp)
                                 .animateItem(placementSpec = ApexMotion.spatialSpring())
                                 .clip(chipShape)
                                 .clickable { onSelectTab(tab.id) }
                                 .testTag("bottom_group_strip_tab_${tab.id}")
                         ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.padding(start = 10.dp, end = 4.dp)
-                            ) {
-                                Icon(
-                                    imageVector = if (tab.isHomePage) {
-                                        Icons.Outlined.Home
-                                    } else {
-                                        Icons.Filled.Public
-                                    },
-                                    contentDescription = null,
-                                    tint = if (isSelected) tabPalette.accent else chipFg,
-                                    modifier = Modifier.size(15.dp)
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(
-                                    text = tab.title,
-                                    style = if (isSelected) {
-                                        EmphasizedTypography.activeTabTitle
-                                    } else {
-                                        MaterialTheme.typography.labelMedium
-                                    },
-                                    color = chipFg,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                    modifier = Modifier.widthIn(max = 124.dp)
-                                )
-                                Spacer(modifier = Modifier.width(2.dp))
-                                IconButton(
-                                    onClick = { onCloseTab(tab.id) },
-                                    modifier = Modifier
-                                        .size(30.dp)
-                                        .testTag("bottom_group_strip_delete_${tab.id}")
-                                ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                if (tab.isHomePage) {
                                     Icon(
-                                        imageVector = Icons.Filled.Close,
-                                        contentDescription = stringResource(R.string.cd_close_tab),
-                                        tint = chipFg,
-                                        modifier = Modifier.size(15.dp)
+                                        imageVector = Icons.Outlined.Home,
+                                        contentDescription = tab.title,
+                                        tint = if (isSelected) tabPalette.accent else MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(19.dp)
+                                    )
+                                } else if (tab.url.contains("google", ignoreCase = true)) {
+                                    SearchEngineLogo(SearchEngineOption.GOOGLE, size = 19.dp)
+                                } else if (tab.url.contains("duckduckgo", ignoreCase = true)) {
+                                    SearchEngineLogo(SearchEngineOption.DUCKDUCKGO, size = 19.dp)
+                                } else if (tab.url.contains("brave", ignoreCase = true)) {
+                                    SearchEngineLogo(SearchEngineOption.BRAVE, size = 19.dp)
+                                } else {
+                                    Icon(
+                                        imageVector = Icons.Filled.Public,
+                                        contentDescription = tab.title,
+                                        tint = if (isSelected) tabPalette.accent else MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(19.dp)
                                     )
                                 }
                             }

@@ -1,6 +1,8 @@
 package com.example.ui.viewmodel
 
 import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.Canvas
 import android.webkit.WebView
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -62,7 +64,9 @@ data class BrowserTab(
     val wasUpgradedToHttps: Boolean = false,
     val isOfflineCopy: Boolean = false,
     val offlineSavedAt: Long? = null,
-    val offlineHtmlContent: String? = null
+    val offlineHtmlContent: String? = null,
+    val previewThumbnail: Bitmap? = null,
+    val lastActiveTimeMillis: Long = System.currentTimeMillis()
 ) {
     val isHomePage: Boolean
         get() = url.isBlank() || url.equals("apex://home", ignoreCase = true)
@@ -469,6 +473,7 @@ class BrowserViewModel(
         canGoBack: Boolean,
         canGoForward: Boolean
     ) {
+        val capturedThumb = captureTabThumbnail(tabId)
         var finishedUrl = ""
         _uiState.update { state ->
             state.copy(
@@ -486,7 +491,9 @@ class BrowserViewModel(
                             isLoading = false,
                             progress = 1f,
                             canGoBack = canGoBack,
-                            canGoForward = canGoForward
+                            canGoForward = canGoForward,
+                            previewThumbnail = capturedThumb ?: tab.previewThumbnail,
+                            lastActiveTimeMillis = System.currentTimeMillis()
                         )
                     } else {
                         tab
@@ -1437,7 +1444,41 @@ class BrowserViewModel(
         }
     }
 
+    fun captureTabThumbnail(tabId: String): Bitmap? {
+        val wv = webViewRegistry[tabId] ?: return null
+        return runCatching {
+            if (wv.width > 0 && wv.height > 0) {
+                val thumbWidth = 320
+                val thumbHeight = (wv.height.toFloat() / wv.width.toFloat() * thumbWidth).toInt().coerceIn(200, 480)
+                val fullBitmap = Bitmap.createBitmap(wv.width, wv.height, Bitmap.Config.ARGB_8888)
+                val canvas = Canvas(fullBitmap)
+                wv.draw(canvas)
+                val scaled = Bitmap.createScaledBitmap(fullBitmap, thumbWidth, thumbHeight, true)
+                fullBitmap.recycle()
+                scaled
+            } else null
+        }.getOrNull()
+    }
+
     fun setTabSwitcherOpen(open: Boolean) {
+        if (open) {
+            val currentTabId = _uiState.value.activeTabId
+            val thumb = captureTabThumbnail(currentTabId)
+            if (thumb != null) {
+                _uiState.update { state ->
+                    state.copy(
+                        tabs = state.tabs.map { tab ->
+                            if (tab.id == currentTabId) {
+                                tab.copy(
+                                    previewThumbnail = thumb,
+                                    lastActiveTimeMillis = System.currentTimeMillis()
+                                )
+                            } else tab
+                        }
+                    )
+                }
+            }
+        }
         _uiState.update {
             it.copy(
                 isTabSwitcherOpen = open,

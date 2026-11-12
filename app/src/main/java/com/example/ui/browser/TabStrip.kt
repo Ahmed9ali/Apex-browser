@@ -450,7 +450,7 @@ fun DraggableTabGridOverlay(
                 }
             } else {
                 LazyVerticalGrid(
-                    columns = GridCells.Adaptive(minSize = 156.dp),
+                    columns = GridCells.Adaptive(minSize = 168.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                     contentPadding = PaddingValues(

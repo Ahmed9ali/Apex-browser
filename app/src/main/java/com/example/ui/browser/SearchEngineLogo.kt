@@ -35,21 +35,21 @@ fun SearchEngineLogo(
         when (engine) {
             SearchEngineOption.GOOGLE -> {
                 Image(
-                    painter = painterResource(R.drawable.ic_logo_google),
+                    painter = painterResource(R.drawable.ic_search_google),
                     contentDescription = engine.displayName,
                     modifier = Modifier.size(size)
                 )
             }
             SearchEngineOption.DUCKDUCKGO -> {
                 Image(
-                    painter = painterResource(R.drawable.ic_logo_duckduckgo),
+                    painter = painterResource(R.drawable.ic_search_duckduckgo),
                     contentDescription = engine.displayName,
                     modifier = Modifier.size(size)
                 )
             }
             SearchEngineOption.BRAVE -> {
                 Image(
-                    painter = painterResource(R.drawable.ic_logo_brave),
+                    painter = painterResource(R.drawable.ic_search_brave),
                     contentDescription = engine.displayName,
                     modifier = Modifier.size(size)
                 )
